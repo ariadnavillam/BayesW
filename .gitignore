@@ -127,3 +127,6 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+stat_rethinking.ipynb
+rethinking.py
+example_BayesW.cpp
