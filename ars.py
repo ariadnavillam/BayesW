@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 from matplotlib.colors import LinearSegmentedColormap
 from cycler import cycler
+
+import helpers 
+
 rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
 ## for Palatino and other serif fonts use:
 rc('font',**{'family':'serif','serif':['Palatino'], 'size':14})
@@ -80,7 +83,10 @@ def compute_points_of_intersection_and_intercepts(x, h, dhdx):
 
 def log_gaussian(mean, variance):
     '''computes the log-likelihood and the derivative of the log gaussian function'''
-    return lambda x : (- 0.5 * (x - mean) ** 2 / variance, - (x - mean) / variance)
+    return lambda x : (- 0.5 * (x - mean) ** 2 / variance)
+                       
+def log_gaussian_dev(mean, variance):
+    return lambda x: (- (x - mean) / variance)
 
 def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = (float('-inf'),float('inf'))):
     '''Determine the left and right limits and compute the unormalised probabilities
@@ -109,10 +115,19 @@ def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = (float(
     return limits, probs
 
 
-def sample_envelope(xs, hs, dhdxs, lims):
+def sample_envelope(xs, hs, dhdxs, bounds):
     
-    limits, probs = envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = lims)
-    probs = probs / np.sum(probs)
+    limits, all_probs = envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs)
+
+    include = helpers.find_positions_between_limits(limits, bounds)
+    probs = np.zeros(len(all_probs))
+    probs[include] = all_probs[include]
+
+    if len(include) == 0:
+        print(limits)
+    
+
+    probs = probs/np.sum(probs)
     
     # Randomly chosen interval in which the sample lies
     i = np.random.choice(np.arange(probs.shape[0]), p=probs)
@@ -131,27 +146,50 @@ def sample_envelope(xs, hs, dhdxs, lims):
     
         return x
     
-def initialise_abcissa(x0, log_unnorm_prob):
+def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
     
     # Expand to the left/right until the abcissa is correctly initialised
-    xs = np.array([x0])
-    hs, dhdxs = log_unnorm_prob(xs)
-    
+    xs = np.array([x0], dtype='float')
+    hs = log_unnorm_prob(xs)
+    dhdxs = derivative(xs)
     dx = -1.
     
     while True:
         
         if dx < 0. and dhdxs[0] > 0.:
             dx = 1.
-            
+
         elif dx > 0. and dhdxs[-1] < 0.:
-            break
+
+            # for x in bounds:
+            #     insert_idx = np.searchsorted(xs, x)
+            #     h, dhdx = log_unnorm_prob(x), derivative(x)
+            #     xs = np.insert(xs, insert_idx, x)
+            #     hs = np.insert(hs, insert_idx, h)
+            #     dhdxs = np.insert(dhdxs, insert_idx, dhdx)
+            # i commented this because adding the bounds is not going to make them appear into the limits
+
+            if len(xs) >= npoints:
+                break
+
+            else:
+
+                for _ in range(npoints-len(xs)):
+                    x = helpers.find_missing_number(xs, bounds)
+                    h, dhdx = log_unnorm_prob(x), derivative(x)
+                    insert_idx = np.searchsorted(xs, x)
+
+                    xs = np.insert(xs, insert_idx, x)
+                    hs = np.insert(hs, insert_idx, h)
+                    dhdxs = np.insert(dhdxs, insert_idx, dhdx)
+                
+                break
         
         insert_idx = 0 if dx < 0 else len(xs)
         
         x = xs[0 if dx < 0 else -1] + dx
         
-        h, dhdx = log_unnorm_prob(x)
+        h, dhdx = log_unnorm_prob(x), derivative(x)
         
         xs = np.insert(xs, insert_idx, x)
         hs = np.insert(hs, insert_idx, h)
@@ -161,15 +199,18 @@ def initialise_abcissa(x0, log_unnorm_prob):
         
     return xs, hs, dhdxs
 
-def adaptive_rejection_sampling(x0, log_unnorm_prob, num_samples, lims):
+
+
+def adaptive_rejection_sampling(x0, log_unnorm_prob, derivative, num_samples, ini_points=100, bounds = (float("-inf"), float("inf"))):
     
-    xs, hs, dhdxs = initialise_abcissa(x0=x0, log_unnorm_prob=log_unnorm_prob)
+    xs, hs, dhdxs = initialise_abcissa(x0=x0, log_unnorm_prob = log_unnorm_prob, derivative=derivative, 
+                                       npoints=ini_points, bounds = bounds)
     
     samples = []
 
     while len(samples) < num_samples:
         
-        x = sample_envelope(xs, hs, dhdxs, lims)
+        x = sample_envelope(xs, hs, dhdxs, bounds=bounds)
         
         gl = g_l(x, xs, hs)
         gu = g_u(x, xs, hs, dhdxs)
@@ -177,7 +218,7 @@ def adaptive_rejection_sampling(x0, log_unnorm_prob, num_samples, lims):
         
         u = np.random.rand()
 
-        h, dhdx = log_unnorm_prob(x)
+        h, dhdx = log_unnorm_prob(x), derivative(x)
         # Squeezing test
         if u * gu <= gl:
             samples.append(x)
@@ -192,7 +233,9 @@ def adaptive_rejection_sampling(x0, log_unnorm_prob, num_samples, lims):
             hs = np.insert(hs, i, h)
             dhdxs = np.insert(dhdxs, i, dhdx)
         
-    return samples
+    return samples, xs
+    
+
 
 def main(): 
 
