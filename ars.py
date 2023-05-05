@@ -99,7 +99,7 @@ def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = (float(
         
     # Compute the points of intersection of the lines making up the envelope
     z, c = compute_points_of_intersection_and_intercepts(xs, hs, dhdxs)
-    
+
     # Left-right endpoints for each piece in the piecewise envelope
     limits = np.concatenate([[lims[0]], z, [lims[1]]])
     limits = np.stack([limits[:-1], limits[1:]], axis=-1)
@@ -182,7 +182,7 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
                     xs = np.insert(xs, insert_idx, x)
                     hs = np.insert(hs, insert_idx, h)
                     dhdxs = np.insert(dhdxs, insert_idx, dhdx)
-                
+                #print(xs)
                 break
         
         insert_idx = 0 if dx < 0 else len(xs)
@@ -190,7 +190,7 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
         x = xs[0 if dx < 0 else -1] + dx
         
         h, dhdx = log_unnorm_prob(x), derivative(x)
-        
+        print(xs, h,dhdx)
         xs = np.insert(xs, insert_idx, x)
         hs = np.insert(hs, insert_idx, h)
         dhdxs = np.insert(dhdxs, insert_idx, dhdx)
@@ -207,7 +207,7 @@ def adaptive_rejection_sampling(x0, log_unnorm_prob, derivative, num_samples, in
                                        npoints=ini_points, bounds = bounds)
     
     samples = []
-
+    print(xs)
     while len(samples) < num_samples:
         
         x = sample_envelope(xs, hs, dhdxs, bounds=bounds)
