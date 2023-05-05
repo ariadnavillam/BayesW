@@ -147,6 +147,12 @@ def sample_envelope(xs, hs, dhdxs, bounds):
         return x
     
 def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
+    '''
+    Function to initialize the abcissa. We first take values until we find a positive and negative derivative.
+    Then we sample points from this interval, we can also sample between bounds, but it may happen that the ml 
+    is way off, and then our sampler is not very precise.
+    '''
+
     
     # Expand to the left/right until the abcissa is correctly initialised
     xs = np.array([x0], dtype='float')
@@ -182,7 +188,7 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
                     xs = np.insert(xs, insert_idx, x)
                     hs = np.insert(hs, insert_idx, h)
                     dhdxs = np.insert(dhdxs, insert_idx, dhdx)
-                #print(xs)
+                
                 break
         
         insert_idx = 0 if dx < 0 else len(xs)
@@ -190,7 +196,6 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
         x = xs[0 if dx < 0 else -1] + dx
         
         h, dhdx = log_unnorm_prob(x), derivative(x)
-        print(xs, h,dhdx)
         xs = np.insert(xs, insert_idx, x)
         hs = np.insert(hs, insert_idx, h)
         dhdxs = np.insert(dhdxs, insert_idx, dhdx)
@@ -204,13 +209,12 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
 def adaptive_rejection_sampling(x0, log_unnorm_prob, derivative, num_samples, ini_points=100, bounds = (float("-inf"), float("inf"))):
     
     xs, hs, dhdxs = initialise_abcissa(x0=x0, log_unnorm_prob = log_unnorm_prob, derivative=derivative, 
-                                       npoints=ini_points, bounds = bounds)
+                                       npoints=ini_points, bounds=bounds)
     
     samples = []
-    print(xs)
     while len(samples) < num_samples:
         
-        x = sample_envelope(xs, hs, dhdxs, bounds=bounds)
+        x = sample_envelope(xs, hs, dhdxs, bounds)
         
         gl = g_l(x, xs, hs)
         gu = g_u(x, xs, hs, dhdxs)

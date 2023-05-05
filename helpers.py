@@ -3,8 +3,8 @@ import random
 
 
 def find_missing_number(arr, bounds):
-    min_val = min(bounds)
-    max_val = max(bounds)
+    min_val = min(arr)
+    max_val = max(arr)
     
     # add random numbers to array
     while True:
