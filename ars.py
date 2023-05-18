@@ -1,3 +1,14 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#----------------------------------------------------------------------------
+# Created By  : ariadnavillam 
+# Created Date: 01/04/23
+# version ='1.0'
+# Based on the code from: https://random-walks.org/content/misc/ars/ars.html#
+# 
+# ---------------------------------------------------------------------------
+""" Functions for Adaptive Rejection Sampling""" 
+
 import numpy as np 
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -82,20 +93,35 @@ def compute_points_of_intersection_and_intercepts(x, h, dhdx):
     return z, c
 
 def log_gaussian(mean, variance):
-    '''computes the log-likelihood and the derivative of the log gaussian function'''
+    '''computes the log-likelihood of the gaussian distribution'''
     return lambda x : (- 0.5 * (x - mean) ** 2 / variance)
                        
 def log_gaussian_dev(mean, variance):
+    '''computes the derivative of the log-likelihood  of a gaussian distribution'''
     return lambda x: (- (x - mean) / variance)
 
-def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = (float('-inf'),float('inf'))):
-    '''Determine the left and right limits and compute the unormalised probabilities
+def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs):
+    '''
+    Determine the left and right limits and compute the unormalised probabilities
     of each piecewise exponential. 
     First we get the intersection points (z) which define the different regions.
     E.g. If we have a intersection point in x=1 then the domain will be divided in [-inf,0], [0,inf].
     The envelope is given by the line y=h'(x-x1) + c (this is the envelope function gu). 
     We compute the exponent of this function to get the probability values. 
+
+    Input:
+    - xs: abscissa points
+    - hs: f(x)
+    - dhdxs: f'(x)
+    - lims: limits of the division (if this is changed it usually gives problems)
+
+    Output:
+    - limits: array of limits of x space. we compute this by dividing the domain 
+    using the intersection points.
+    - probs: probability of each region defined by the limits. 
     '''
+
+    lims = (min(xs), max(xs))
         
     # Compute the points of intersection of the lines making up the envelope
     z, c = compute_points_of_intersection_and_intercepts(xs, hs, dhdxs)
@@ -103,23 +129,32 @@ def envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs, lims = (float(
     # Left-right endpoints for each piece in the piecewise envelope
     limits = np.concatenate([[lims[0]], z, [lims[1]]])
     limits = np.stack([limits[:-1], limits[1:]], axis=-1)
-    probs = (np.exp(dhdxs * limits[:, 1]) - np.exp(dhdxs * limits[:, 0])) * np.exp(c)
+
     
+    probs = np.exp(dhdxs * limits[:, 1] + c) - np.exp(dhdxs * limits[:, 0] + c)
+
     # Catch any intervals where dhdx was zero
-    idx_nonzero = np.where(dhdxs != 0.)
+    idx_nonzero = np.where(dhdxs != 0.)[0]
     probs[idx_nonzero] = probs[idx_nonzero] / dhdxs[idx_nonzero]
     
-    idx_zero = np.where(dhdxs == 0.)
-    probs[idx_zero] = ((limits[:, 1] - limits[:, 0]) * np.exp(c))[idx_zero]
+    idx_zero = np.where(dhdxs == 0.)[0]
+    if len(idx_zero) != 0:
+        
+        probs[idx_zero] = ((limits[:, 1] - limits[:, 0]) * np.exp(c))[idx_zero]
+
     
     return limits, probs
 
 
 def sample_envelope(xs, hs, dhdxs, bounds):
-    
+    # this part of the code is the one that gives more problems
     limits, all_probs = envelope_limits_and_unnormalised_probabilities(xs, hs, dhdxs)
-
+    
+    if bounds[0] > bounds[1]:
+        bounds = helpers.change_order(bounds)
+        
     include = helpers.find_positions_between_limits(limits, bounds)
+
     probs = np.zeros(len(all_probs))
     probs[include] = all_probs[include]
 
@@ -151,6 +186,19 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
     Function to initialize the abcissa. We first take values until we find a positive and negative derivative.
     Then we sample points from this interval, we can also sample between bounds, but it may happen that the ml 
     is way off, and then our sampler is not very precise.
+
+    Input:
+    - x0: initial value (our estimate of the parameter)
+    - log_unnorm_prob: log probability function
+    - derivative: derivative of the log prob
+    - npoints: number of points we want to initialise our abscissa
+    - bounds: limits of the points
+
+    Ouput:
+    -xs: abscissa points
+    -hs: f(xs)
+    -dhdxs: f'(xs)
+
     '''
 
     
@@ -158,14 +206,17 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
     xs = np.array([x0], dtype='float')
     hs = log_unnorm_prob(xs)
     dhdxs = derivative(xs)
-    dx = -1.
+    dx = -1. # first we look to the left
     
     while True:
         
         if dx < 0. and dhdxs[0] > 0.:
+            # when we have found a positive derivative to the left now we look to the right
             dx = 1.
 
         elif dx > 0. and dhdxs[-1] < 0.:
+            #when we find a negative derivative to the right we are finished
+
 
             # for x in bounds:
             #     insert_idx = np.searchsorted(xs, x)
@@ -179,7 +230,7 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
                 break
 
             else:
-
+                # now we add points to have a better envelope function
                 for _ in range(npoints-len(xs)):
                     x = helpers.find_missing_number(xs, bounds)
                     h, dhdx = log_unnorm_prob(x), derivative(x)
@@ -196,6 +247,7 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
         x = xs[0 if dx < 0 else -1] + dx
         
         h, dhdx = log_unnorm_prob(x), derivative(x)
+
         xs = np.insert(xs, insert_idx, x)
         hs = np.insert(hs, insert_idx, h)
         dhdxs = np.insert(dhdxs, insert_idx, dhdx)
