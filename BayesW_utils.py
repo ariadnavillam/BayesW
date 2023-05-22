@@ -21,8 +21,10 @@ class Parameter:
         val_bounds = self.bounds
         bounds = (val_bounds[0]*self.current_value, val_bounds[1]*self.current_value)
 
-        if helpers.bounds_error(bounds):
+        if helpers.bounds_error(bounds) or self.now == 0:
             return (self.bounds[0] - 1, self.bounds[1] - 1)
+        elif bounds[1] < bounds [0]:
+            return helpers.change_order(bounds)
         else:
             return bounds
     
@@ -32,26 +34,43 @@ class Parameter:
     def sample_posterior(self, params, epsilon_or_sums, n_samples=1):
 
         bounds = self.get_bounds()
-        self.bounds_list.append(bounds)
+        self.bounds_list.append(np.array(bounds))
         self.previous_values.append(self.current_value)
-        samples, xs = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
+        try: 
+            samples, xs = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
                                                       log_unnorm_prob=self.f(params, epsilon_or_sums), 
                                                       derivative= self.df(params, epsilon_or_sums), 
                                                       num_samples=n_samples, bounds=bounds)
+        except:
+            print(self.now, bounds)
+            raise ValueError("Something in the sampler went wrong")
         
         if n_samples == 1:
             self.current_value = samples[0]
         else:
             self.current_value = samples
-
+        self.now = self.current_value
         return self.current_value
     
     def plot_sampled_values(self, truth = None):
-        bounds = np.array([np.array([0.9*i, 1.1*i]) for i in self.previous_values])
-        plt.plot(self.previous_values)
+        bo = np.array(self.bounds_list)
         if truth != None:
             plt.axhline(y=truth, linestyle= "--", color="k")
-        plt.fill_between(range(0,len(self.previous_values)), y1=bounds[:,0], y2=bounds[:,1], alpha=0.4)
+        plt.plot(self.previous_values)
+        plt.fill_between(range(0,len(self.previous_values)), y1=bo[:,0], y2=bo[:,1], alpha=0.4)
+
+class SimpleParameter():
+    def __init__(self,  init_value, posterior_function):
+        self.current_value = init_value
+        self.init_value = init_value
+        self.previous_values = []
+        self.now = init_value
+        self.posterior = posterior_function
+        
+    def sample_posterior(pars, ):
+        pass
+    
+
 
 def prepare_pars_for_beta(pars,j):
     pars['mean_sd_ratio'] = pars['mean_sd_ratio_all'][j]
@@ -76,7 +95,7 @@ def compute_partial_sums(exp_epsilon, marker):
 
 def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
 
-    markers, cov, d_fail, gumbel_dis, y_data_log = data
+    markers, _, d_fail, _, y_data_log, _ = data
 
     mu = np.mean(y_data_log)
     alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
@@ -123,7 +142,7 @@ def simulate_data(n_markers, n_samples, n_covs):
     gumbel_dis = stats.gumbel_r(loc=loc, scale=scale)
     y_data_log = gumbel_dis.rvs(size=100)
 
-    return (markers, cov, d_fail, gumbel_dis, y_data_log)
+    return (markers, cov, d_fail, gumbel_dis, y_data_log, weibull_pars)
     
 if __name__ == "__main__":
     pass

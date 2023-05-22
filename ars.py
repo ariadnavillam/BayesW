@@ -157,10 +157,13 @@ def sample_envelope(xs, hs, dhdxs, bounds):
 
     probs = np.zeros(len(all_probs))
     probs[include] = all_probs[include]
-
+    probs = helpers.normalize_probabilities(probs)
+    
     if len(include) == 0:
         print(limits)
     
+    if np.any(probs < 0):
+        print(bounds, probs[probs < 0], xs[probs < 0])
 
     probs = probs/np.sum(probs)
     

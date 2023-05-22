@@ -1,6 +1,10 @@
 import numpy as np
 import random
 
+def normalize_probabilities(probs):
+    probs = probs + np.abs(probs.min())
+    return probs/probs.max()
+
 def bounds_error(bounds):
     if bounds[0] == bounds[1]:
         return True
