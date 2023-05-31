@@ -60,16 +60,25 @@ class Parameter:
         plt.fill_between(range(0,len(self.previous_values)), y1=bo[:,0], y2=bo[:,1], alpha=0.4)
 
 class SimpleParameter():
-    def __init__(self,  init_value, posterior_function):
+    def __init__(self,  init_value ):
         self.current_value = init_value
         self.init_value = init_value
         self.previous_values = []
         self.now = init_value
-        self.posterior = posterior_function
         
-    def sample_posterior(pars, ):
-        pass
     
+    def sample_posterior(self, func):
+        x = func.rvs(size = 1)[0]
+        self.previous_values.append(x)
+        self.now = x
+        return x
+    
+    def plot_sampled_values(self, truth = None):
+        if truth != None:
+            plt.axhline(y=truth, linestyle= "--", color="k")
+        plt.plot(self.previous_values)
+
+
 
 
 def prepare_pars_for_beta(pars,j):
@@ -100,6 +109,7 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
     mu = np.mean(y_data_log)
     alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
     sigma_g_ini = np.var(y_data_log)/n_markers
+
     
     
     pars = {"alpha": alpha_ini, 
@@ -108,7 +118,7 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
 
             "var_mu": 100, 
             "var_delta": 100,
-
+            
             "alpha_zero": 0.01,
             "kappa_zero": 0.01,
 
@@ -118,6 +128,9 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
             "beta_sigma": 0.0001,
 
             "mixture_C_all": np.ones(n_markers)*0.001,
+            "mixture_groups": 1,
+            "mixture_component": np.ones(n_markers),
+
             "sum_fail_all": (d_fail * markers.T).sum(axis=1),
             "mean_sd_ratio_all": np.mean(markers, axis=0)/np.std(markers, axis=0),
             "sd_all": np.std(markers, axis=0),

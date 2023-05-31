@@ -4,7 +4,7 @@ import random
 def normalize_probabilities(probs):
     if probs.min() < 0:
         probs = probs - probs.min()
-    return probs/probs.max()
+    return probs
 
 def bounds_error(bounds):
     if bounds[0] == bounds[1]:
