@@ -104,11 +104,12 @@ def compute_partial_sums(exp_epsilon, marker):
 
 def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
 
-    markers, _, d_fail, _, y_data_log, _ = data
+    markers, _, _, d_fail, y_data_log= data
 
     mu = np.mean(y_data_log)
-    alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
-    sigma_g_ini = np.var(y_data_log)/n_markers
+    alpha_ini = np.var(y_data_log)
+    #alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
+    sigma_g_ini = np.pi**2/(6*alpha_ini**2)/l_mix
 
     
     
@@ -127,7 +128,7 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
             "alpha_sigma": 1,
             "beta_sigma": 0.0001,
 
-            "mixture_C_all": np.ones(n_markers)*0.001,
+            "mixture_C_all": np.ones(n_markers)*1/n_markers,
             "mixture_groups": 1,
             "mixture_component": np.ones(n_markers),
 
@@ -143,19 +144,20 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
     return pars, alpha_ini, sigma_g_ini
 
 
-def simulate_data(n_markers, n_samples, n_covs):
-    markers = np.random.binomial(2, 0.5, size = (n_samples, n_markers)) #x matrix of markers
+def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs):
+    gumbel_dis = stats.gumbel_r(loc=0, scale=1)
+    w = gumbel_dis.rvs(size=(n_samples,1))
+    betas = np.random.normal(0, np.sqrt(1/n_markers), size = (n_markers, 1))
+    markers = np.random.binomial(2, sigma_g_true, (n_samples, n_markers))
+    g = markers.dot(betas)
+
     cov = np.random.binomial(1, 0.5, size = (n_samples, n_covs)) #z matrix of 
     d_fail = np.ones(n_samples)
 
-    weibull_pars = (np.random.uniform(), np.random.uniform())
-    loc = -np.log(weibull_pars[1])
-    scale = 1/weibull_pars[0]
+    log_data = mu_true + g + w/alpha_true + np.euler_gamma/alpha_true
+    log_data = log_data.reshape(log_data.shape[0])
 
-    gumbel_dis = stats.gumbel_r(loc=loc, scale=scale)
-    y_data_log = gumbel_dis.rvs(size=100)
-
-    return (markers, cov, d_fail, gumbel_dis, y_data_log, weibull_pars)
+    return (markers, betas, cov, d_fail, log_data)
     
 if __name__ == "__main__":
     pass
