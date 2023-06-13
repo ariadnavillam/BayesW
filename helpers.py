@@ -6,6 +6,9 @@ def normalize_probabilities(probs):
         probs = probs - probs.min()
     return probs
 
+def normalize_markers(markers):
+    return (markers - markers.mean(axis=0))/markers.std(axis=0)
+
 def bounds_error(bounds):
     if bounds[0] == bounds[1]:
         return True

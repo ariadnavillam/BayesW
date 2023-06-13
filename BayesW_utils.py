@@ -107,15 +107,14 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
     markers, _, _, d_fail, y_data_log= data
 
     mu = np.mean(y_data_log)
-    alpha_ini = np.var(y_data_log)
-    #alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
+    #alpha_ini = np.var(y_data_log)
+    alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
     sigma_g_ini = np.pi**2/(6*alpha_ini**2)/l_mix
-
-    
+    norm_markers = helpers.normalize_markers(markers)
     
     pars = {"alpha": alpha_ini, 
             "sigma_g": sigma_g_ini,
-            "d": np.sum(d_fail), 
+            "d": np.sum(d_fail)/n_samples, 
 
             "var_mu": 100, 
             "var_delta": 100,
@@ -128,11 +127,11 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
             "alpha_sigma": 1,
             "beta_sigma": 0.0001,
 
-            "mixture_C_all": np.ones(n_markers)*1/n_markers,
+            "mixture_C_all": np.ones(n_markers)*0.01/n_markers,
             "mixture_groups": 1,
             "mixture_component": np.ones(n_markers),
 
-            "sum_fail_all": (d_fail * markers.T).sum(axis=1),
+            "sum_fail_all": (d_fail * norm_markers.T).sum(axis=1),
             "mean_sd_ratio_all": np.mean(markers, axis=0)/np.std(markers, axis=0),
             "sd_all": np.std(markers, axis=0),
             "pi_vector": np.zeros(l_mix) + 1,
@@ -144,15 +143,16 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
     return pars, alpha_ini, sigma_g_ini
 
 
-def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs):
+def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs, prevalence):
     gumbel_dis = stats.gumbel_r(loc=0, scale=1)
     w = gumbel_dis.rvs(size=(n_samples,1))
-    betas = np.random.normal(0, np.sqrt(1/n_markers), size = (n_markers, 1))
-    markers = np.random.binomial(2, sigma_g_true, (n_samples, n_markers))
-    g = markers.dot(betas)
+    betas = np.random.normal(0, np.sqrt(sigma_g_true/n_markers), size = (n_markers, 1))
+    markers = np.random.binomial(2, 0.5, (n_samples, n_markers))
+
+    g = helpers.normalize_markers(markers).dot(betas)
 
     cov = np.random.binomial(1, 0.5, size = (n_samples, n_covs)) #z matrix of 
-    d_fail = np.ones(n_samples)
+    d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = n_samples)
 
     log_data = mu_true + g + w/alpha_true + np.euler_gamma/alpha_true
     log_data = log_data.reshape(log_data.shape[0])

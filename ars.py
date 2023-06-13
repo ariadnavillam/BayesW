@@ -178,8 +178,7 @@ def sample_envelope(xs, hs, dhdxs, bounds):
         return u * (limits[i, 1] - limits[i, 0]) + limits[i, 0]
         
     else:
-        x = np.log(u * np.exp(dhdxs[i] * limits[i, 1]) \
-                + (1 - u) * np.exp(dhdxs[i] * limits[i, 0]))
+        x = np.logaddexp(np.log(u) + dhdxs[i] * limits[i, 1], np.log(1 - u) + dhdxs[i] * limits[i, 0])
         x = x / dhdxs[i] 
     
         return x
