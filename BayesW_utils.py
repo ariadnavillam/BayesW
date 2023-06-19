@@ -68,8 +68,8 @@ class SimpleParameter():
         
     
     def sample_posterior(self, func):
+        self.previous_values.append(self.now)
         x = func.rvs(size = 1)[0]
-        self.previous_values.append(x)
         self.now = x
         return x
     
@@ -102,7 +102,7 @@ def compute_partial_sums(exp_epsilon, marker):
 
     return partial_sums
 
-def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
+def init_parameters(n_markers, l_mix, data):
 
     markers, _, _, d_fail, y_data_log= data
 
@@ -114,7 +114,7 @@ def init_parameters(n_markers, n_samples, n_covs, l_mix, data):
     
     pars = {"alpha": alpha_ini, 
             "sigma_g": sigma_g_ini,
-            "d": np.sum(d_fail)/n_samples, 
+            "d": np.sum(d_fail), 
 
             "var_mu": 100, 
             "var_delta": 100,
