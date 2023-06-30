@@ -7,6 +7,13 @@ def normalize_probabilities(probs):
     return probs
 
 def normalize_markers(markers):
+    # sqn = np.linalg.norm(markers, axis=0) - n_samples*markers.mean(axis=0)**2
+    # markers = markers - markers.mean(axis=0)
+    # std = 1/(np.sqrt(sqn/n_samples))
+    # markers = markers * std
+
+    # markers = markers - markers.mean(axis=0)
+    
     return (markers - markers.mean(axis=0))/markers.std(axis=0)
 
 def bounds_error(bounds):

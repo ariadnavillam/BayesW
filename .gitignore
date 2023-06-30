@@ -133,3 +133,8 @@ stat_rethinking.ipynb
 rethinking.py
 example_BayesW.cpp
 ars.cpp
+/files_sim/
+notes.ipynb
+script_sim.sh
+
+*.sim

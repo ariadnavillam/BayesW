@@ -183,7 +183,7 @@ def sample_envelope(xs, hs, dhdxs, bounds):
     
         return x
     
-def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
+def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds, ddx):
     '''
     Function to initialize the abcissa. We first take values until we find a positive and negative derivative.
     Then we sample points from this interval, we can also sample between bounds, but it may happen that the ml 
@@ -208,13 +208,13 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
     xs = np.array([x0], dtype='float')
     hs = log_unnorm_prob(xs)
     dhdxs = derivative(xs)
-    dx = -1. # first we look to the left
+    dx = -1*ddx # first we look to the left
     
     while True:
         
         if dx < 0. and dhdxs[0] > 0.:
             # when we have found a positive derivative to the left now we look to the right
-            dx = 1.
+            dx = 1. * ddx
 
         elif dx > 0. and dhdxs[-1] < 0.:
             #when we find a negative derivative to the right we are finished
@@ -260,10 +260,12 @@ def initialise_abcissa(x0, log_unnorm_prob, derivative, npoints, bounds):
 
 
 
-def adaptive_rejection_sampling(x0, log_unnorm_prob, derivative, num_samples, ini_points=100, bounds = (float("-inf"), float("inf"))):
+def adaptive_rejection_sampling(x0, log_unnorm_prob, derivative, num_samples, 
+                                ini_points=100, bounds = (float("-inf"), float("inf")),
+                                ddx = 1):
     
     xs, hs, dhdxs = initialise_abcissa(x0=x0, log_unnorm_prob = log_unnorm_prob, derivative=derivative, 
-                                       npoints=ini_points, bounds=bounds)
+                                       npoints=ini_points, bounds=bounds, ddx=ddx)
     
     samples = []
     while len(samples) < num_samples:

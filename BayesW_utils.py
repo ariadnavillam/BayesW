@@ -31,7 +31,7 @@ class Parameter:
     def get_value(self):
         return self.current_value
     
-    def sample_posterior(self, params, epsilon_or_sums, n_samples=1):
+    def sample_posterior(self, params, epsilon_or_sums, n_samples=1, ddx=1):
 
         bounds = self.get_bounds()
         self.bounds_list.append(np.array(bounds))
@@ -40,7 +40,7 @@ class Parameter:
             samples, xs = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
                                                       log_unnorm_prob=self.f(params, epsilon_or_sums), 
                                                       derivative= self.df(params, epsilon_or_sums), 
-                                                      num_samples=n_samples, bounds=bounds)
+                                                      num_samples=n_samples, bounds=bounds, ddx=ddx)
         except:
             print(self.now, bounds)
             raise ValueError("Something in the sampler went wrong")
@@ -85,7 +85,10 @@ def prepare_pars_for_beta(pars,j):
     pars['mean_sd_ratio'] = pars['mean_sd_ratio_all'][j]
     pars['sd'] = pars['sd_all'][j]
     pars['sum_fail'] = pars['sum_fail_all'][j]
-    pars['mixture_C'] = pars['mixture_C_all'][j]
+    mix = int(pars["mixture_component"][j])
+    if mix != 0:
+        pars['mixture_Ck'] = pars["Ck"][mix-1]
+
     return pars
 
 def calculate_exp_epsilon(pars, epsilon):
@@ -108,14 +111,17 @@ def init_parameters(n_markers, l_mix, data):
 
     mu = np.mean(y_data_log)
     #alpha_ini = np.var(y_data_log)
-    alpha_ini = np.pi/np.sqrt( 6*np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
-    sigma_g_ini = np.pi**2/(6*alpha_ini**2)/l_mix
+    alpha_ini = np.pi/np.sqrt( 6 * np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
+    sigma_g_ini = np.pi**2/(6* n_markers * alpha_ini**2)
     norm_markers = helpers.normalize_markers(markers)
+    pi_L = np.zeros(l_mix)
+    pi_L[0] = 0.99
+    pi_L[1:] = (1 - pi_L[0])/(l_mix - 1)
     
     pars = {"alpha": alpha_ini, 
             "sigma_g": sigma_g_ini,
             "d": np.sum(d_fail), 
-
+            "mu": mu,
             "var_mu": 100, 
             "var_delta": 100,
             
@@ -127,14 +133,25 @@ def init_parameters(n_markers, l_mix, data):
             "alpha_sigma": 1,
             "beta_sigma": 0.0001,
 
-            "mixture_C_all": np.ones(n_markers)*0.01/n_markers,
-            "mixture_groups": 1,
-            "mixture_component": np.ones(n_markers),
+            "n_markers": n_markers,
+            
+
+            # "mixture_Ck_all": np.ones(n_markers)*0.01/n_markers,
+            # "mixture_groups": 1,
+            "mixture_component": np.zeros(n_markers),
+            
+            "v": np.zeros(l_mix),
 
             "sum_fail_all": (d_fail * norm_markers.T).sum(axis=1),
             "mean_sd_ratio_all": np.mean(markers, axis=0)/np.std(markers, axis=0),
             "sd_all": np.std(markers, axis=0),
-            "pi_vector": np.zeros(l_mix) + 1,
+
+
+            "Ck": [0.001, 0.0001, 0.00001 ],
+            "l_mix": l_mix,
+            "pi_L": pi_L,
+            "marginal_likelihoods": np.ones(l_mix),
+
             "hyperparameters": np.zeros(l_mix +1),
             "gammas": np.zeros(n_markers),
 
@@ -144,6 +161,7 @@ def init_parameters(n_markers, l_mix, data):
 
 
 def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs, prevalence):
+
     gumbel_dis = stats.gumbel_r(loc=0, scale=1)
     w = gumbel_dis.rvs(size=(n_samples,1))
     betas = np.random.normal(0, np.sqrt(sigma_g_true/n_markers), size = (n_markers, 1))
@@ -158,6 +176,127 @@ def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_cov
     log_data = log_data.reshape(log_data.shape[0])
 
     return (markers, betas, cov, d_fail, log_data)
+    
+def gh_integrand_adaptive(s, pars, exp_epsilon, marker):
+    """
+    Computes the value of an integrand function.
+
+    Input:
+    - pars: parameters dictionary
+    - exp_epsilon: exponentiated adjusted residuals
+    - s: quadrature point, roots of the Hermite polynomial
+    - marker: marker j (column of the markers matrix)
+
+    Output:
+    - np.exp(temp): computed value of the integrand function
+    """
+    
+    # vi is a vector of exp(vi) # exp epsilon function
+    
+    # Calculate the exponent argument (sparse)
+    # temp = -pars["alpha"] * pars["s"] * pars["dj"] * pars["sqrt_2Ck_sigmaG"] + partial_sums.sum() \
+    #     - np.exp(pars["alpha"] * pars["mean_sd_ratio"] * pars["s"] * pars["sqrt_2Ck_sigmaG"]) \
+    #     * ( partial_sums[0] + partial_sums[1] * np.exp(-pars["alpha"] * pars["s"] * pars["sqrt_2Ck_sigmaG"] / pars["sd"])\
+    #      + partial * np.exp(-2 * alpha * s * sqrt_2Ck_sigmaG / sd)
+    # ) - s ** 2
+
+    temp = -pars["alpha"] * s * pars["sum_fail"] * pars["sqrt_2Ck_sigmaG"] \
+            + np.sum((exp_epsilon * (1 -  np.exp(-marker*s*pars["sqrt_2Ck_sigmaG"]*pars["alpha"]) ) )) \
+            - s ** 2
+    
+    
+    return np.exp(temp)
+
+def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
+    '''
+    Compute the value of the integral using Adaptive Gauss-hermite quadrture
+
+    Input:
+    - k: mixture component
+    - exp_epsilon: exponentiated epsilon
+    - pars: parameter dictionary
+    - m_points: number of quadrature points
+    - marker: marker j (column of the markers matrix)
+
+    Output:
+    - pars["sigma"]*temp: value of the integral
+    '''
+
+    pars["sqrt_2Ck_sigmaG"] = np.sqrt(2 * pars["Ck"][k] * pars["sigma_g"])
+    x_points = np.zeros(m_points - 1)
+    w_weights = np.zeros(m_points)
+
+    if m_points == 3:
+        
+
+        x_points[0] = 1.2247448713916
+        x_points[1] = - x_points[0]
+
+        w_weights[0] = 1.3239311752136
+        w_weights[1] = w_weights[0]
+
+        
+
+        w_weights[2] = 1.1816359006037
+
+        x_points = pars["sigma"] * x_points
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp += w_weights[-1]
+    
+    elif m_points == 5:
+
+        x_points[np.arange(0,m_points-1,2)] = [2.0201828704561, 0.95857246461382]
+        x_points[np.arange(1,m_points-1,2)] =  - x_points[np.arange(0,m_points-1,2)]
+
+        w_weights[np.arange(0,m_points,2)] = [1.181488625536, 0.98658099675143, 0.94530872048294]
+        w_weights[np.arange(1,m_points, 2)] = w_weights[np.arange(0, m_points - 1, 2)]
+
+        x_points = pars["sigma"] * x_points
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp += w_weights[-1]
+
+    elif m_points == 7:
+
+        x_points[np.arange(0,m_points-1,2)] = [2.6519613568352, 1.6735516287675, 0.81628788285897]
+        x_points[np.arange(1,m_points-1,2)] =  - x_points[np.arange(0,m_points-1,2)]
+
+        w_weights[np.arange(0,m_points,2)] = [1.1013307296103, 0.8971846002252, 0.8286873032836, 0.81026461755681]
+        w_weights[np.arange(1,m_points, 2)] = w_weights[np.arange(0, m_points - 1, 2)]
+
+        x_points = pars["sigma"] * x_points
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp += w_weights[-1]
+    
+
+    else:
+        raise ValueError('Possible number of quad points: 3, 5, 7 ')
+
+
+
+    return pars["sigma"]*temp
+
+def marginal_likelihood_vec_calc(pars, exp_epsilon, n, marker):
+    '''Calculate the marginal likelihood vectors for components not equal to zero
+    Input:
+    - pars: parameters dictionary
+    - exp_epsilon: exponentiated residuals
+    - n: number of quadrature points
+    - marker: column of the markers matrix
+    
+    Ouput:
+    - pars["marginal_likelihoods"]: vector with probabilities for each mixture'''
+    
+    exp_sum = np.sum(exp_epsilon * marker * marker)
+
+    for k in range(len(pars["Ck"])):
+        pars["sigma"] = 1/np.sqrt(1 + pars["alpha"]**2 * pars["sigma_g"] * pars["Ck"][k] * exp_sum)
+        pars["marginal_likelihoods"][k+1] = pars["pi_L"][k+1] \
+            * gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker )
+
+
+    return 
+
+
     
 if __name__ == "__main__":
     pass
