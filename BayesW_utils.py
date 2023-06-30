@@ -106,7 +106,20 @@ def compute_partial_sums(exp_epsilon, marker):
     return partial_sums
 
 def init_parameters(n_markers, l_mix, data):
+    '''
+    Function to initilize the parameters dictionary
+    
+    Input: 
+    - n_markers: number of markers
+    - l_mix: number of mixture components
+    - data: the simulated data
 
+    Output:
+    - pars: dictionary with all the paremeters
+    - alpha_ini: the initial value of alpha
+    - sigma_ini: the initial value of sigma
+    
+    '''
     markers, _, _, d_fail, y_data_log= data
 
     mu = np.mean(y_data_log)
@@ -161,22 +174,49 @@ def init_parameters(n_markers, l_mix, data):
 
 
 def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs, prevalence):
+    '''
+    Function to simulate markers and phenotype, given the parameters.
+    
+    Input:
+    - mu_true: intercept 
+    - alpha_true: alpha 
+    - sigma_g_true: true sigma_g value.
+    - n_markers: number of markers
+    - n_samples: number of samples
+    - n_covs: number of covariates
+    - prevalence: prevalence of the phenotype (how many people have had the event)
 
+    Output:
+    - markers: simulated marker data as a numpy array
+    - betas: simulated beta coefficients as a numpy array
+    - cov: simulated covariate data as a numpy array.
+    - d_fail: simulated failure indicator (1: event ocurred, 0: it didnt) 
+    - log_data: log phenotype data
+
+    '''
+    ## log Yi = mu + xB + wi/alpha + K/alpha
+
+    ## Draw the errors from a standard Gumbel(wi)
     gumbel_dis = stats.gumbel_r(loc=0, scale=1)
     w = gumbel_dis.rvs(size=(n_samples,1))
+
+    ## genetic effects
     betas = np.random.normal(0, np.sqrt(sigma_g_true/n_markers), size = (n_markers, 1))
     markers = np.random.binomial(2, 0.5, (n_samples, n_markers))
 
     g = helpers.normalize_markers(markers).dot(betas)
 
     cov = np.random.binomial(1, 0.5, size = (n_samples, n_covs)) #z matrix of 
+
+    ## failure indicator vector
     d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = n_samples)
 
     log_data = mu_true + g + w/alpha_true + np.euler_gamma/alpha_true
     log_data = log_data.reshape(log_data.shape[0])
 
     return (markers, betas, cov, d_fail, log_data)
-    
+
+
 def gh_integrand_adaptive(s, pars, exp_epsilon, marker):
     """
     Computes the value of an integrand function.
