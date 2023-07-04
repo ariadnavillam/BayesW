@@ -73,7 +73,7 @@ def log_mu(pars, epsilon_arr,):
     '''computes the log-likelihood of the mu parameter
     we added a term mu*alpha*d (mu is the current value) for being able to sample when alpha is high'''
 
-    return lambda x : (pars["mu"]*pars['alpha']*pars['d'] - pars['alpha']*x*pars['d'] - \
+    return lambda x : (- pars['alpha']*x*pars['d'] - \
                         np.sum(np.exp((epsilon_arr - x)*pars['alpha'] - np.euler_gamma)) \
                         - (x**2)/(2*pars["var_mu"]))
 

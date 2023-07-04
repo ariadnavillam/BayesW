@@ -3,9 +3,10 @@ from scipy import stats
 import helpers
 import ars
 import matplotlib.pyplot as plt
+import Bayes_arms
 
 class Parameter:
-    def __init__(self, log_dens_f, dev_log_dens, bounds, init_value, sampler_x0 = 1):
+    def __init__(self, log_dens_f, dev_log_dens, bounds, xinit, init_value):
         self.current_value = init_value
         self.init_value = init_value
         self.previous_values = []
@@ -13,8 +14,7 @@ class Parameter:
         self.df = dev_log_dens
         self.bounds = bounds
         self.now = init_value
-        self.sampler_x0 = sampler_x0
-        self.bounds_list = []
+        self.xinit = xinit
 
     def get_bounds(self):
         
@@ -31,33 +31,57 @@ class Parameter:
     def get_value(self):
         return self.current_value
     
-    def sample_posterior(self, params, epsilon_or_sums, n_samples=1, ddx=1):
-
-        bounds = self.get_bounds()
-        self.bounds_list.append(np.array(bounds))
-        self.previous_values.append(self.current_value)
-        try: 
-            samples, xs = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
-                                                      log_unnorm_prob=self.f(params, epsilon_or_sums), 
-                                                      derivative= self.df(params, epsilon_or_sums), 
-                                                      num_samples=n_samples, bounds=bounds, ddx=ddx)
-        except:
-            print(self.now, bounds)
-            raise ValueError("Something in the sampler went wrong")
+    def update(self, value):
+        self.now  = value
+        self.current_value
+        self.previous_values.append(value)
         
-        if n_samples == 1:
-            self.current_value = samples[0]
-        else:
-            self.current_value = samples
-        self.now = self.current_value
-        return self.current_value
+    
+    def sample_posterior(self, params, epsilon_or_sums, xinit = None, bounds = None, dometrop = 0):
+
+        if bounds != None:
+            self.bounds = bounds
+
+        ninit = 4
+        npoint = 100
+        nsamp = 1
+        ncent = 4
+        convex = 1.0
+        xprev = 0.0
+        xcent = qcent = [5.,30.,79.,95.]
+        xl = self.bounds[0]
+        xr = self.bounds[1]
+        xsamp = []
+        
+        if xinit == None:
+            xinit = [self.now * x for x in self.xinit]
+        
+
+        err = Bayes_arms.arms(xinit, ninit, xl,xr, self.f(params,epsilon_or_sums),
+                              convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
+
+        # bounds = self.get_bounds()
+        # self.bounds_list.append(np.array(bounds))
+        # self.previous_values.append(self.current_value)
+         
+        # err = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
+        #                                               log_unnorm_prob=self.f(params, epsilon_or_sums), 
+        #                                               derivative= self.df(params, epsilon_or_sums), 
+        #                                               num_samples=n_samples, bounds=bounds, ddx=ddx)
+        
+        if err != 0:
+            print("Error ", err, " in arms")
+        else:      
+            self.update(xsamp[0])
+
+        return 
     
     def plot_sampled_values(self, truth = None):
-        bo = np.array(self.bounds_list)
+        #bo = np.array(self.bounds_list)
         if truth != None:
             plt.axhline(y=truth, linestyle= "--", color="k")
         plt.plot(self.previous_values)
-        plt.fill_between(range(0,len(self.previous_values)), y1=bo[:,0], y2=bo[:,1], alpha=0.4)
+        #plt.fill_between(range(0,len(self.previous_values)), y1=bo[:,0], y2=bo[:,1], alpha=0.4)
 
 class SimpleParameter():
     def __init__(self,  init_value ):
