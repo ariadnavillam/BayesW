@@ -47,7 +47,7 @@ class Parameter:
         nsamp = 1
         ncent = 4
         convex = 1.0
-        xprev = 0.0
+        xprev = self.now
         xcent = qcent = [5.,30.,79.,95.]
         xl = self.bounds[0]
         xr = self.bounds[1]
@@ -184,7 +184,7 @@ def init_parameters(n_markers, l_mix, data):
             "sd_all": np.std(markers, axis=0),
 
 
-            "Ck": [0.001, 0.0001, 0.00001 ],
+            "Ck": [0.01, 0.001, 0.0001 ],
             "l_mix": l_mix,
             "pi_L": pi_L,
             "marginal_likelihoods": np.ones(l_mix),

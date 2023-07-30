@@ -29,8 +29,6 @@ class Point:
         self.pl = pl
         self.pr = pr
     
-    def __str__(self):
-        return self.__dict__
 
 class Envelope:
     def __init__(self, cpoint, npoint, ymax, p, convex):
@@ -65,12 +63,18 @@ def arms(xinit, ninit, xl, xr, myfunc, convex, npoint, dometrop, xprev,
         if qcent[i] < 0.0 or qcent[i] > 100.0:
             # percentage requesting centile is out of range
             return 1005
-
+    
     # incorporate density function and its data into FUNBAG lpdf
     lpdf.myfunc = myfunc
 
     # set up initial envelope
-    err, env = initial(xinit, ninit, xl, xr, npoint, lpdf, convex, metrop)
+    ini_out = initial(xinit, ninit, xl, xr, npoint, lpdf, convex, metrop)
+    
+    if type(ini_out) != int:
+        err, env = ini_out
+    else:
+        err = ini_out
+
     if err:
         return err
     
