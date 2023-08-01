@@ -144,7 +144,7 @@ def init_parameters(n_markers, l_mix, data):
     - sigma_ini: the initial value of sigma
     
     '''
-    markers, _, _, d_fail, y_data_log= data
+    markers, d_fail, y_data_log= data
 
     mu = np.mean(y_data_log)
     #alpha_ini = np.var(y_data_log)
@@ -184,7 +184,7 @@ def init_parameters(n_markers, l_mix, data):
             "sd_all": np.std(markers, axis=0),
 
 
-            "Ck": [0.01, 0.001, 0.0001 ],
+            "Ck": [0.1, 0.01, 0.001],
             "l_mix": l_mix,
             "pi_L": pi_L,
             "marginal_likelihoods": np.ones(l_mix),
@@ -354,11 +354,15 @@ def marginal_likelihood_vec_calc(pars, exp_epsilon, n, marker):
 
     for k in range(len(pars["Ck"])):
         pars["sigma"] = 1/np.sqrt(1 + pars["alpha"]**2 * pars["sigma_g"] * pars["Ck"][k] * exp_sum)
-        pars["marginal_likelihoods"][k+1] = pars["pi_L"][k+1] \
+        temp = pars["pi_L"][k+1] \
             * gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker )
 
+        if np.isinf(temp):
+            print(k, exp_sum, pars["pi_L"][k+1], gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker ))
+       
+        pars["marginal_likelihoods"][k+1] = temp
 
-    return 
+    return
 
 
     

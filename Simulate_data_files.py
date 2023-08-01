@@ -21,6 +21,8 @@ causal = 50
 alpha = 10
 sigma_g = np.pi**2/(6*alpha**2)
 
+
+
 b = np.random.normal(0, np.sqrt(sigma_g/M), size = causal)
 markers = np.random.binomial(2, 0.5, (N, M))
 beta = np.zeros(M)
@@ -35,10 +37,18 @@ g = markers.dot(beta.reshape(M,1))
 gumbel_dis = stats.gumbel_r(loc=0, scale=1)
 w = gumbel_dis.rvs(size=(N,1))
 
-   
+## write hyperparameters file
+
+print(f'''h2, {h2}
+        sigma_g {sigma_g}
+        mu {mu}
+        alpha {10} ''', file=open('path + dataset.h2'))
+
+## write beta file
+pd.DataFrame({"index":index, "effect": b}).to_csv(path + dataset + ".beta", index=False, sep='\t', header=None)
 
 ## failure indicator vector
-d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = N)
+d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = N).astype("int")
 
 log_data = mu + g + w/alpha + np.euler_gamma/alpha
 
@@ -81,9 +91,9 @@ phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
                   "IID" : np.arange(1, N+1, dtype="int"),
                   "phen" : log_data })
 
-phen.to_csv(path + dataset + ".phen", index=False, sep='\t', header=None)
+phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
 
-np.savetxt(path + dataset + ".fail", d_fail)
+np.savetxt(path + dataset + ".fail", d_fail, '%1i')
 
 fam = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
                   "IID" : np.arange(1, N+1, dtype="int"),

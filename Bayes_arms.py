@@ -261,6 +261,7 @@ def invert(prob, env, p):
 
     # Guard against imprecision yielding a point outside the interval
     if p.x < xl or p.x > xr:
+        print(xl, xr, p.x)
         print("EXIT1")
         sys.exit(1)
 
