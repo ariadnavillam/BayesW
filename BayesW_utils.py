@@ -106,6 +106,7 @@ class SimpleParameter():
 
 
 def prepare_pars_for_beta(pars,j):
+    pars["mean"] =  pars["mean_all"][j]
     pars['mean_sd_ratio'] = pars['mean_sd_ratio_all'][j]
     pars['sd'] = pars['sd_all'][j]
     pars['sum_fail'] = pars['sum_fail_all'][j]
@@ -118,16 +119,36 @@ def prepare_pars_for_beta(pars,j):
 def calculate_exp_epsilon(pars, epsilon):
     return np.exp(pars["alpha"]*epsilon - np.euler_gamma)
 
-def compute_partial_sums(exp_epsilon, marker):
+def compute_partial_sums(exp_epsilon, idx_1, idx_2):
     total_sum = exp_epsilon.sum()
     partial_sums = np.zeros(3)
-    for i in [2,1]:
-        idx = np.argwhere(marker == i)
-        partial_sums[i] = exp_epsilon[idx].sum()
+
+    partial_sums[1] = exp_epsilon[idx_1].sum()
+    partial_sums[2] = exp_epsilon[idx_2].sum()
     
     partial_sums[0] = total_sum - partial_sums.sum()
 
     return partial_sums
+
+def save_markers_index(markers):
+    '''
+    store positions where markers equals 1 or 2 and the sum
+    '''
+    I2 = []
+    SI2 = []
+    I1 = []
+    SI1 = []
+
+    for j in range(markers.shape[1]):
+        idx = np.argwhere(markers[:,j] == 2).flatten()
+        I2.append(idx)
+        SI2.append(idx.shape[0])
+
+        idx = np.argwhere(markers[:,j] == 1).flatten()
+        I1.append(idx)
+        SI1.append(idx.shape[0])
+    return I1,SI1,I2,SI2
+    
 
 def init_parameters(n_markers, l_mix, data):
     '''
@@ -154,6 +175,13 @@ def init_parameters(n_markers, l_mix, data):
     pi_L = np.zeros(l_mix)
     pi_L[0] = 0.99
     pi_L[1:] = (1 - pi_L[0])/(l_mix - 1)
+    mean_markers = np.mean(markers, axis=0)
+    std_markers = np.std(markers, axis=0)
+    sum_fail = []
+    for j in range(n_markers):
+        sum_fail.append(np.sum(norm_markers[:,j] * d_fail))
+
+    
     
     pars = {"alpha": alpha_ini, 
             "sigma_g": sigma_g_ini,
@@ -179,12 +207,16 @@ def init_parameters(n_markers, l_mix, data):
             
             "v": np.zeros(l_mix),
 
-            "sum_fail_all": (d_fail * norm_markers.T).sum(axis=1),
-            "mean_sd_ratio_all": np.mean(markers, axis=0)/np.std(markers, axis=0),
-            "sd_all": np.std(markers, axis=0),
 
 
-            "Ck": [0.1, 0.01, 0.001],
+            "sum_fail_all": np.array(sum_fail), #(d_fail * norm_markers.T).sum(axis=1),
+            
+            "mean_all": mean_markers,
+            "sd_all": std_markers,
+            "mean_sd_ratio_all": mean_markers/std_markers,
+
+
+            "Ck": [0.001, 0.01, 0.1],
             "l_mix": l_mix,
             "pi_L": pi_L,
             "marginal_likelihoods": np.ones(l_mix),
@@ -194,7 +226,7 @@ def init_parameters(n_markers, l_mix, data):
 
     }
     
-    return pars, alpha_ini, sigma_g_ini
+    return pars, alpha_ini, sigma_g_ini, 
 
 
 def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs, prevalence):
@@ -241,7 +273,7 @@ def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_cov
     return (markers, betas, cov, d_fail, log_data)
 
 
-def gh_integrand_adaptive(s, pars, exp_epsilon, marker):
+def gh_integrand_adaptive(s, pars, partial_sums):
     """
     Computes the value of an integrand function.
 
@@ -258,20 +290,19 @@ def gh_integrand_adaptive(s, pars, exp_epsilon, marker):
     # vi is a vector of exp(vi) # exp epsilon function
     
     # Calculate the exponent argument (sparse)
-    # temp = -pars["alpha"] * pars["s"] * pars["dj"] * pars["sqrt_2Ck_sigmaG"] + partial_sums.sum() \
-    #     - np.exp(pars["alpha"] * pars["mean_sd_ratio"] * pars["s"] * pars["sqrt_2Ck_sigmaG"]) \
-    #     * ( partial_sums[0] + partial_sums[1] * np.exp(-pars["alpha"] * pars["s"] * pars["sqrt_2Ck_sigmaG"] / pars["sd"])\
-    #      + partial * np.exp(-2 * alpha * s * sqrt_2Ck_sigmaG / sd)
-    # ) - s ** 2
+    temp = -pars["alpha"] * s * pars["sum_fail"] * pars["sqrt_2Ck_sigmaG"] + partial_sums.sum() \
+        - np.exp(pars["alpha"] * pars["mean_sd_ratio"] * s * pars["sqrt_2Ck_sigmaG"]) \
+        * ( partial_sums[0] + partial_sums[1] * np.exp(-pars["alpha"] * s * pars["sqrt_2Ck_sigmaG"] / pars["sd"])\
+         + partial_sums[2] * np.exp(-2 * pars["alpha"] * s * pars["sqrt_2Ck_sigmaG"] / pars["sd"])) - s ** 2
 
-    temp = -pars["alpha"] * s * pars["sum_fail"] * pars["sqrt_2Ck_sigmaG"] \
-            + np.sum((exp_epsilon * (1 -  np.exp(-marker*s*pars["sqrt_2Ck_sigmaG"]*pars["alpha"]) ) )) \
-            - s ** 2
+    # temp = -pars["alpha"] * s * pars["sum_fail"] * pars["sqrt_2Ck_sigmaG"] \
+    #         + np.sum((exp_epsilon * (1 -  np.exp(-marker*s*pars["sqrt_2Ck_sigmaG"]*pars["alpha"]) ) )) \
+    #         - s ** 2
     
     
     return np.exp(temp)
 
-def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
+def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, partial_sums):
     '''
     Compute the value of the integral using Adaptive Gauss-hermite quadrture
 
@@ -304,7 +335,7 @@ def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
         w_weights[2] = 1.1816359006037
 
         x_points = pars["sigma"] * x_points
-        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, partial_sums) for i in range(0,m_points - 1)])
         temp += w_weights[-1]
     
     elif m_points == 5:
@@ -316,7 +347,7 @@ def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
         w_weights[np.arange(1,m_points, 2)] = w_weights[np.arange(0, m_points - 1, 2)]
 
         x_points = pars["sigma"] * x_points
-        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, partial_sums) for i in range(0,m_points - 1)])
         temp += w_weights[-1]
 
     elif m_points == 7:
@@ -328,7 +359,7 @@ def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
         w_weights[np.arange(1,m_points, 2)] = w_weights[np.arange(0, m_points - 1, 2)]
 
         x_points = pars["sigma"] * x_points
-        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, exp_epsilon, marker) for i in range(0,m_points - 1)])
+        temp = np.sum([w_weights[i] * gh_integrand_adaptive(x_points[i], pars, partial_sums) for i in range(0,m_points - 1)])
         temp += w_weights[-1]
     
 
@@ -339,7 +370,7 @@ def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points, marker):
 
     return pars["sigma"]*temp
 
-def marginal_likelihood_vec_calc(pars, exp_epsilon, n, marker):
+def marginal_likelihood_vec_calc(pars, exp_epsilon, n, partial_sums):
     '''Calculate the marginal likelihood vectors for components not equal to zero
     Input:
     - pars: parameters dictionary
@@ -350,19 +381,22 @@ def marginal_likelihood_vec_calc(pars, exp_epsilon, n, marker):
     Ouput:
     - pars["marginal_likelihoods"]: vector with probabilities for each mixture'''
     
-    exp_sum = np.sum(exp_epsilon * marker * marker)
+    exp_sum = (partial_sums[1] * (1- 2*pars["mean"]) + 4*(1-pars["mean"]) * partial_sums[2] + partial_sums.sum() * pars["mean"]**2)/pars["sd"]**2
+    # np.sum(exp_epsilon * marker * marker)
+
+    marginal_likelihood = [pars["marginal_likelihoods"][0],]
 
     for k in range(len(pars["Ck"])):
         pars["sigma"] = 1/np.sqrt(1 + pars["alpha"]**2 * pars["sigma_g"] * pars["Ck"][k] * exp_sum)
         temp = pars["pi_L"][k+1] \
-            * gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker )
+            * gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, partial_sums=partial_sums)
 
-        if np.isinf(temp):
-            print(k, exp_sum, pars["pi_L"][k+1], gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker ))
+        # if np.isinf(temp):
+        #     print(k, exp_sum, pars["pi_L"][k+1], gauss_hermite_adaptive_integral(k=k, exp_epsilon=exp_epsilon, pars=pars, m_points = n, marker=marker ))
        
-        pars["marginal_likelihoods"][k+1] = temp
+        marginal_likelihood.append(temp)
 
-    return
+    return np.array(marginal_likelihood)
 
 
     

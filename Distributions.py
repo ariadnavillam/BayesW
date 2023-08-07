@@ -12,7 +12,7 @@ def sigma_g_func(betas, pars):
     #     betas_sqr.append(b.T.dot(b))
     
     alpha = pars["alpha_sigma"] + 0.5 * (pars["n_markers"] - pars["v"][0] +1)
-    beta = pars["beta_sigma"] + 0.5 * (pars["n_markers"] - pars["v"][0] +1)*np.linalg.norm(betas_arr)
+    beta = pars["beta_sigma"] + 0.5 * (pars["n_markers"] - pars["v"][0] +1)*np.linalg.norm(betas_arr, ord=2)**2
     
     return stats.invgamma(alpha, loc=0, scale=beta)
 

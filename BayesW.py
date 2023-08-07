@@ -32,15 +32,16 @@ from Load_data import *
 maxit = 100
 quad_points = 7
 l_mix = 4
-n_markers = 200
+n_markers = 10000
+check_file = "checking.txt"
 
-gen_file = "files_sim/weibull_1000_200"
-fail_file = "files_sim/weibull_1000_200.fail"
-phen_file = "files_sim/weibull_1000_200.phen"
+gen_file = "/home/avillanu/BayesW_data_sim/t_M10K_N_5K"
+fail_file = "/home/avillanu/BayesW_data_sim/Weibull.fail"
+phen_file = "/home/avillanu/BayesW_data_sim/Weibull.phen"
 
 alpha_true = 10 
 sigma_g_true = np.pi**2/(6*alpha_true**2)
-mu_true = 3.9
+mu_true = 4.1
 
 ## load data
 
@@ -48,6 +49,7 @@ markers = load_genotype(gen_file)
 d_fail = load_fail(fail_file)
 y_data_log = load_phen(phen_file)
 
+print(markers.shape)
 ## simulate data
 
 # n_markers, n_samples,n_covs = 150,100,10
@@ -75,10 +77,11 @@ print("\t".join(header), file=open(out_file, 'w'))
 
 norm_markers = helpers.normalize_markers(markers)
 
-
 pars, alpha_ini, sigma_g_ini = init_parameters(n_markers = n_markers,
                                                 l_mix = l_mix, 
                                                 data = (markers, d_fail, y_data_log) )
+
+I1,SI1,I2,SI2 = save_markers_index(markers)
 
 mix_comp = []
 mu = Parameter(log_mu, dev_log_mu, 
@@ -105,7 +108,15 @@ sigma_g = SimpleParameter(pars["sigma_g"])
 epsilon = y_data_log - mu.now
 np.set_printoptions(precision=3)
 
+# with open("epsilon.txt","w") as f:
+#     print(iter, "\t", 'nan', "\t", end='', file=f)
+#     np.savetxt(f, epsilon )
+
+
+# open('data.txt', 'w').close()
+# open('data_ep.txt', 'w').close()
 print("\t".join(["0", str(mu.now), str(sigma_g.now), str(alpha.now), "h2", "0", "0", "0"]), file=open(out_file, 'a'))
+# print(pars["pi_L"], file=open(check_file, 'w'))
 
 for it in range(maxit):
     
@@ -119,8 +130,13 @@ for it in range(maxit):
 
     x = alpha.sample_posterior(pars, epsilon)
     pars["alpha"] = alpha.now
-
+    
+    
     vi = calculate_exp_epsilon(pars, epsilon)
+    # with open("data_ep.txt","a") as f:
+    #     print(iter, "\t", "ini", "\t", end='', file=f)
+    #     np.savetxt(f, vi.T, delimiter=",")
+    #     print("\n", file=f)
 
     pars["marginal_likelihoods"][0] = pars["pi_L"][0] * np.sqrt(np.pi)
     pars["v"] = np.ones(pars["l_mix"])
@@ -129,18 +145,24 @@ for it in range(maxit):
     for j in range(n_markers):
         
         pars = prepare_pars_for_beta(pars, j)
+        print(j, pars["mean"], pars["sd"], pars["sum_fail"])
         beta = betas[j]
 
         if beta.now != 0:
             epsilon = epsilon + norm_markers[:,j]*beta.now
             vi = calculate_exp_epsilon(pars, epsilon)
-            partial_sums = compute_partial_sums(vi, markers[:,j])
-        
+        # with open("data_ep.txt","a") as f:
+        #     print(iter, "\t", "ini", "\t", end='', file=f)
+        #     np.savetxt(f, vi.T, delimiter=",")
+        #     print("\n", file=f)
 
+        partial_sums = compute_partial_sums(vi, I1[j], I2[j])
+    
+        #print(it, "\t", j, "\t", partial_sums, file=open('data.txt', "a"))
         p_uni = np.random.uniform()
 
-        marginal_likelihood_vec_calc(pars, vi, quad_points, norm_markers[:,j] )
-        
+        pars["marginal_likelihoods"] = marginal_likelihood_vec_calc(pars, vi, quad_points, partial_sums)
+        #print(j, "\t", pars["marginal_likelihoods"], file=open(check_file, "a"))
 
         #print(pars["marginal_likelihoods"])
         
@@ -155,9 +177,7 @@ for it in range(maxit):
                     pars["mixture_component"][j] = k
                 
                 else:
-                    
                     pars["mixture_C"] = pars["Ck"][k-1]
-                    partial_sums = compute_partial_sums(vi, markers[:,j])
                     safe_limit = helpers.calculate_safe_limit(pars)
 
                     beta.sample_posterior(pars, partial_sums, 
@@ -169,9 +189,10 @@ for it in range(maxit):
                     pars["mixture_component"][j] = k
 
                     epsilon = epsilon - norm_markers[:,j]*beta.now
-                    vi = calculate_exp_epsilon(pars, epsilon)
+                
                 
                 break
+
             else:
                 if k + 1 == pars["l_mix"] - 1:
                     prob_acum = 1
@@ -181,6 +202,8 @@ for it in range(maxit):
     
     sigma_g.sample_posterior(sigma_g_func(betas, pars))
     pars["sigma_g"] = sigma_g.now
+
+    print(sigma_g.now)
 
     pars["pi_L"] = np.random.dirichlet(pars["v"])
     pars["sqrt_2Ck_sigmaG"] = np.sqrt(2*pars["sigma_g"])

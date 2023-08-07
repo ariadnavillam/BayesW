@@ -14,8 +14,9 @@ def load_genotype(file, path_plink = "/home/avillanu/plink/"):
     plink path should be specified
     '''
     
-
-    os.system(f"{path_plink}plink --bfile {file} --recodeA --out {file} --noweb")
+    if os.path.isfile(file+".raw") == False:
+        os.system(f"{path_plink}plink --bfile {file} --recodeA --out {file} --noweb")
+        
     os.system(f"cat {file}.raw | tail -n +2 | cut -d' ' -f7- > {file}.txt")
 
 

@@ -229,14 +229,15 @@ def invert(prob, env, p):
     p.pr = q
     p.f = 0
     p.cum = u
-    prop = (u - q.pl.cum)/(q.cum -q.pl.cum)
+    prop = (u - q.pl.cum)/(q.cum - q.pl.cum)
     
     # Calculate the required x-value
-    if q.pl.x == q.x:
+    if np.abs(q.pl.x - q.x) < XEPS: ## equal
         # Interval is of zero length
         p.x = q.x
         p.y = q.y
         p.ey = q.ey
+
     else:
         xl = q.pl.x
         xr = q.x
@@ -247,7 +248,7 @@ def invert(prob, env, p):
 
         if math.isclose(yr, yl, abs_tol=YEPS):
             # Linear approximation was used in integration in the function cumulate
-            if math.isclose(eyr, eyl, rel_tol= EYEPS * abs(eyr + eyl)):
+            if np.abs(eyr - eyl) > EYEPS * abs(eyr + eyl):
                 p.x = xl + ((xr - xl) / (eyr - eyl)) * (-eyl + np.sqrt((1. - prop) * eyl * eyl + prop * eyr * eyr))
             else:
                 p.x = xl + (xr - xl) * prop
@@ -258,14 +259,15 @@ def invert(prob, env, p):
             p.x = xl + ((xr - xl) / (yr - yl)) * (-yl + logshift((1. - prop) * eyl + prop * eyr, env.ymax))
             p.y = ((p.x - xl) / (xr - xl)) * (yr - yl) + yl
             p.ey = expshift(p.y, env.ymax)
-
-    # Guard against imprecision yielding a point outside the interval
-    if p.x < xl or p.x > xr:
-        print(xl, xr, p.x)
-        print("EXIT1")
-        sys.exit(1)
+    
+        # Guard against imprecision yielding a point outside the interval
+        if p.x < xl - XEPS or p.x > xr + XEPS:
+            print("EXIT1")
+            sys.exit(1)
 
     return 
+
+    
 
 def test(env, p, lpdf, metrop):
     u = np.random.uniform() * p.ey
@@ -526,8 +528,10 @@ def meet(q, env, metrop):
         print("EXIT4")
         sys.exit(31)
 
-    if (q.pl != None and q.x < q.pl.x) or (q.pr != None and q.x > q.pr.x):
+    if (q.pl != None and q.x < q.pl.x - XEPS) or (q.pr != None and q.x > q.pr.x + XEPS):
         # Intersection point outside interval (through imprecision)
+
+        print(q.x, q.pl.x)
         print("EXIT5")
         sys.exit(32)
 
@@ -540,7 +544,7 @@ def area(q):
         print("EXIT6")
         sys.exit(1)
 
-    elif q.pl.x == q.x:
+    elif np.abs(q.pl.x - q.x) < XEPS: ## equal
         # Interval has zero length
         a = 0.0
     elif abs(q.y - q.pl.y) < YEPS:
