@@ -1,6 +1,6 @@
 import os
-import random
-from decimal import *
+import time
+
 
 import matplotlib.pyplot as plt
 
@@ -45,11 +45,14 @@ mu_true = 4.1
 
 ## load data
 
-
+start = time.time()
 markers = load_genotype(gen_file)
 d_fail = load_fail(fail_file)
 y_data_log = load_phen(phen_file)
 
+stop1 = time.time()
+
+print(f"Data loaded. {stop1-start} seconds.")
 print(markers.shape)
 ## simulate data
 
@@ -118,6 +121,10 @@ np.set_printoptions(precision=3)
 print("\t".join(["0", str(mu.now), str(sigma_g.now), str(alpha.now), "h2", "0", "0", "0"]), file=open(out_file, 'a'))
 # print(pars["pi_L"], file=open(check_file, 'w'))
 
+stop2 = time.time()
+
+print(f"Initialization completed. {stop2 - stop1} seconds.")
+
 for it in range(maxit):
     
     #clear_output(wait=False)
@@ -173,7 +180,7 @@ for it in range(maxit):
                     beta.sample_posterior(pars, epsilon, 
                                           bounds = (beta.now - safe_limit, beta.now + safe_limit),
                                           xinit = [beta.now - safe_limit/10 , beta.now,  beta.now + safe_limit/20, beta.now + safe_limit/10],
-                                          dometrop = 1)
+                                          dometrop = 0)
 
                     pars["v"][k] +=1
                     pars["mixture_component"][j] = k
@@ -203,6 +210,9 @@ for it in range(maxit):
     
     print("\t".join([str(it+1), str(mu.now), str(sigma_g.now), str(alpha.now), "h2", str(np.sum(pars["v"][1:])), "1", str(len(pars["v"]))]), file=open(out_file, 'a'))
 
+stop = time.time()
+print(f"Finished! Total time: {stop - start} seconds.")
+np.savetxt("betas_out.txt", np.array([beta.now for beta in betas]), fmt='%1.3f')
 
 f = plt.figure(1, figsize=(10,8))
 plt.subplot(2,2,2)

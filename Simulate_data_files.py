@@ -5,26 +5,36 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 
-dataset = "weibull_"
+dataset = "Weibull"
+type_marker = "dense"
 N = 1000
 M = 200
+causal = 50
+
 prevalence = 1
 path = "files_sim"
 
 if path.endswith("/") == False:
     path = path + "/"
 
-dataset = dataset + str(N) + "_" + str(M)
+dataset = f"{dataset}_{type_marker}_{N}_{M}"
 
 mu = 3.9
-causal = 50
+
 alpha = 10
 sigma_g = np.pi**2/(6*alpha**2)
 
 
+b = np.random.normal(0, np.sqrt(sigma_g/causal), size = causal)
 
-b = np.random.normal(0, np.sqrt(sigma_g/M), size = causal)
-markers = np.random.binomial(2, 0.5, (N, M))
+if type_marker == "dense":
+    markers = np.random.normal(0, 1, (N, M))
+elif type_marker =="sparse":
+    markers = np.random.binomial(2, 0.5, (N, M))
+else:
+    print("Wrong marker type. Options: dense, sparse.")
+    exit()
+
 beta = np.zeros(M)
 index = np.random.choice(np.arange(0,M), causal)
 
@@ -42,7 +52,7 @@ w = gumbel_dis.rvs(size=(N,1))
 print(f'''h2, {h2}
         sigma_g {sigma_g}
         mu {mu}
-        alpha {10} ''', file=open('path + dataset.h2'))
+        alpha {alpha} ''', file=open(f'{path} + {dataset}.h2'))
 
 ## write beta file
 pd.DataFrame({"index":index, "effect": b}).to_csv(path + dataset + ".beta", index=False, sep='\t', header=None)
@@ -55,43 +65,45 @@ log_data = mu + g + w/alpha + np.euler_gamma/alpha
 
 log_data = log_data.reshape(log_data.shape[0])
 
+plink_q = input("Create plink files? (Y/n)")
 
-ped = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
-                  "IID" : np.arange(1, N+1, dtype="int"),
-                  "PID" : np.zeros(N,dtype='int'),
-                  "MID" : np.zeros(N,dtype='int'),
-                  "Sex" : np.zeros(N,dtype='int'),
-                  "phen" : np.zeros(N,dtype='int') })
+if plink_q != "n":
+    ped = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
+                    "IID" : np.arange(1, N+1, dtype="int"),
+                    "PID" : np.zeros(N,dtype='int'),
+                    "MID" : np.zeros(N,dtype='int'),
+                    "Sex" : np.zeros(N,dtype='int'),
+                    "phen" : np.zeros(N,dtype='int') })
 
-markersdf = pd.DataFrame(markers)
-di = {0: "AA", 1:"CA", 2: "CC"}
-df = markersdf.replace(di)
-df['concat'] = pd.Series(df.fillna('').values.tolist()).str.join('')
-seq = df['concat'].to_numpy()
-genotype = pd.DataFrame(np.array([np.array(list(s)) for s in seq]))
+    markersdf = pd.DataFrame(markers)
+    di = {0: "AA", 1:"CA", 2: "CC"}
+    df = markersdf.replace(di)
+    df['concat'] = pd.Series(df.fillna('').values.tolist()).str.join('')
+    seq = df['concat'].to_numpy()
+    genotype = pd.DataFrame(np.array([np.array(list(s)) for s in seq]))
 
 
-# for col in df.columns:
-#     # Split letters into two columns
-#     df[[str(col) + '_Letter1', str(col) + '_Letter2']] = df[col].str.split('', expand=True).iloc[:, 1:3]
+    # for col in df.columns:
+    #     # Split letters into two columns
+    #     df[[str(col) + '_Letter1', str(col) + '_Letter2']] = df[col].str.split('', expand=True).iloc[:, 1:3]
 
-#     # Drop the original column
-#     df = df.drop(col, axis=1)
+    #     # Drop the original column
+    #     df = df.drop(col, axis=1)
 
-pd.concat([ped, genotype], axis=1).to_csv(path + dataset + ".ped", index=False, sep='\t', header=None)
+    pd.concat([ped, genotype], axis=1).to_csv(path + dataset + ".ped", index=False, sep='\t', header=None)
 
-map = pd.DataFrame({"chr" : np.ones(M, dtype="int"),
-                  "rs" : ["rs" + str(i) for i in range(1, M+1)],
-                  "dist" : np.zeros(M, dtype="int"),
-                  "bp" : np.arange(1,M+1, dtype="int")})
+    map = pd.DataFrame({"chr" : np.ones(M, dtype="int"),
+                    "rs" : ["rs" + str(i) for i in range(1, M+1)],
+                    "dist" : np.zeros(M, dtype="int"),
+                    "bp" : np.arange(1,M+1, dtype="int")})
 
-map.to_csv(path + dataset + ".map", index=False, sep='\t', header=None)
+    map.to_csv(path + dataset + ".map", index=False, sep='\t', header=None)
 
-phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
-                  "IID" : np.arange(1, N+1, dtype="int"),
-                  "phen" : log_data })
+    phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
+                    "IID" : np.arange(1, N+1, dtype="int"),
+                    "phen" : log_data })
 
-phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
+    phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
 
 np.savetxt(path + dataset + ".fail", d_fail, '%1i')
 
