@@ -8,8 +8,8 @@ import pandas as pd
 dataset = "Weibull"
 type_marker = "dense"
 N = 1000
-M = 200
-causal = 50
+M = 20000
+causal = 200
 
 prevalence = 1
 path = "files_sim"
@@ -49,10 +49,12 @@ w = gumbel_dis.rvs(size=(N,1))
 
 ## write hyperparameters file
 
-print(f'''h2, {h2}
-        sigma_g {sigma_g}
-        mu {mu}
-        alpha {alpha} ''', file=open(f'{path} + {dataset}.h2'))
+print(
+f'''h2\t{h2}
+sigma_g\t{sigma_g}
+mu\t{mu}
+alpha\t{alpha} ''',
+file=open(path + dataset +'.h2', "w"))
 
 ## write beta file
 pd.DataFrame({"index":index, "effect": b}).to_csv(path + dataset + ".beta", index=False, sep='\t', header=None)
@@ -68,6 +70,7 @@ log_data = log_data.reshape(log_data.shape[0])
 plink_q = input("Create plink files? (Y/n)")
 
 if plink_q != "n":
+
     ped = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
                     "IID" : np.arange(1, N+1, dtype="int"),
                     "PID" : np.zeros(N,dtype='int'),
@@ -99,67 +102,75 @@ if plink_q != "n":
 
     map.to_csv(path + dataset + ".map", index=False, sep='\t', header=None)
 
-    phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
-                    "IID" : np.arange(1, N+1, dtype="int"),
-                    "phen" : log_data })
-
-    phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
-
-np.savetxt(path + dataset + ".fail", d_fail, '%1i')
-
-fam = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
+    fam = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
                   "IID" : np.arange(1, N+1, dtype="int"),
                   "IDfather" : np.zeros(N,dtype='int'),
                   "IDmother" : np.zeros(N,dtype='int'),
                   "Sex" : np.zeros(N,dtype='int'),
                   "phen" : np.repeat(-9,N) })
 
-fam.to_csv(path + dataset + ".fam", index=False, sep='\t', header=None)
+    fam.to_csv(path + dataset + ".fam", index=False, sep='\t', header=None)
+
+    os.system(f"/home/avillanu/plink/plink --file {path + dataset} --make-bed --out {path+dataset} --noweb")
+
+else:
+    ## create raw matrix and binary file
+    np.savetxt(path + dataset + ".txt", markers)
+    np.save(path + dataset + ".npy", markers)
 
 
-bash_script = f"""#!/bin/bash
+phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
+                "IID" : np.arange(1, N+1, dtype="int"),
+                "phen" : log_data })
+
+phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
+
+np.savetxt(path + dataset + ".fail", d_fail, '%1i')
 
 
-#SBATCH --ntasks 5
+# bash_script = f"""#!/bin/bash
 
-#SBATCH --cpus-per-task 4
 
-#SBATCH --time 01:00:00
+# #SBATCH --ntasks 5
 
-#SBATCH --mem-per-cpu=1gb
+# #SBATCH --cpus-per-task 4
 
-#SBATCH --output=/nfs/scistore18/bartogrp/avillanu/hydra/{dataset}.log
+# #SBATCH --time 01:00:00
 
-module load gcc boost eigen openmpi
+# #SBATCH --mem-per-cpu=1gb
 
-mkdir example/out_bayesW
+# #SBATCH --output=/nfs/scistore13/rbngrp/avillanu/hydra/{dataset}.log
 
-srun src/hydra_G \\
-  --number-individuals {N} \\
-  --number-markers {M} \\
-  --mpibayes bayesWMPI \\
-  --pheno example/{dataset}.phen \\
-  --failure example/{dataset}.fail \\
-  --quad_points 25 \\
-  --chain-length 500 \\
-  --thin 5 \\
-  --mcmc-out-dir example/out_bayesW \\
-  --mcmc-out-name {dataset} \\
-  --shuf-mark 1 \\
-  --sync-rate 1 \\
-  --bfile example/{dataset} \\
-  --S 0.001,0.01,0.1
-  """
+# module load gcc boost eigen openmpi
 
-with open("run_bayes.sh","w+") as f:
-    f.writelines(bash_script)
+# mkdir example/out_bayesW
 
-os.system(f"/home/avillanu/plink/plink --file {path + dataset} --make-bed --out {path+dataset} --noweb")
+# srun src/hydra_G \\
+#   --number-individuals {N} \\
+#   --number-markers {M} \\
+#   --mpibayes bayesWMPI \\
+#   --pheno example/{dataset}.phen \\
+#   --failure example/{dataset}.fail \\
+#   --quad_points 25 \\
+#   --chain-length 500 \\
+#   --thin 5 \\
+#   --mcmc-out-dir example/out_bayesW \\
+#   --mcmc-out-name {dataset} \\
+#   --shuf-mark 1 \\
+#   --sync-rate 1 \\
+#   --bfile example/{dataset} \\
+#   --S 0.001,0.01,0.1
+#   """
 
-move = input("Move new files to the cluster? (Y/n)")
+# with open("run_bayes.sh","w+") as f:
+#     f.writelines(bash_script)
 
-if move != "n":
 
-    os.system(f"scp run_bayes.sh avillanu@bea81.hpc.ista.ac.at:/nfs/scistore18/bartogrp/avillanu/hydra/.")
 
-    os.system(f"scp {path + dataset}.* avillanu@bea81.hpc.ista.ac.at:/nfs/scistore18/bartogrp/avillanu/hydra/example/.")
+# move = input("Move new files to the cluster? (Y/n)")
+
+# if move != "n":
+
+#     os.system(f"scp run_bayes.sh avillanu@bea81.hpc.ista.ac.at:/nfs/scistore18/bartogrp/avillanu/hydra/.")
+
+#     os.system(f"scp {path + dataset}.* avillanu@bea81.hpc.ista.ac.at:/nfs/scistore18/bartogrp/avillanu/hydra/example/.")

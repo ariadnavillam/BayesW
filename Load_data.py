@@ -7,20 +7,31 @@ import numpy as np
 import pandas as pd
 
 
-def load_genotype(file, path_plink = "/home/avillanu/plink/"):
+def load_genotype(file, geno_type = "dense", path_plink = "/home/avillanu/plink/"):
 
     '''
     Function to load genotype matrix from ped or bed file (map and fam files needed).
     plink path should be specified
     '''
     
-    if os.path.isfile(file+".raw") == False:
-        os.system(f"{path_plink}plink --bfile {file} --recodeA --out {file} --noweb")
-        
-    os.system(f"cat {file}.raw | tail -n +2 | cut -d' ' -f7- > {file}.txt")
+    if geno_type == "sparse":
+        if os.path.isfile(file+".raw") == False:
+            os.system(f"{path_plink}plink --bfile {file} --recodeA --out {file} --noweb")
+            
+        os.system(f"cat {file}.raw | tail -n +2 | cut -d' ' -f7- > {file}.txt")
 
+        X = np.loadtxt(f"{file}.txt", dtype="int")
+    
+    elif geno_type == "binary":
+        X = np.load(f"{file}.npy")
+    
+    elif geno_type =="dense":
+        X = np.loadtxt(f"{file}.txt")
+    
+    else:
+        print("Enter correct type of markers. Options: dense | binary | sparse.")
+        exit()
 
-    X = np.loadtxt(f"{file}.txt", dtype="int")
     return X
 
 def load_fail(file):

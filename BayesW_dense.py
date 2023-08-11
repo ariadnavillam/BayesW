@@ -29,19 +29,19 @@ from Load_data import *
 
 ## parameters
 
-maxit = 100
+maxit = 30
 quad_points = 7
 l_mix = 4
-n_markers = 10000
+n_markers = 20000
 check_file = "checking.txt"
 
-gen_file = "/home/avillanu/BayesW_data_sim/t_M10K_N_5K"
-fail_file = "/home/avillanu/BayesW_data_sim/Weibull.fail"
-phen_file = "/home/avillanu/BayesW_data_sim/Weibull.phen"
+gen_file = "/home/avillanu/GitHub/BayesW/files_sim/Weibull_dense_1000_20000"
+fail_file = "files_sim/Weibull_dense_1000_20000.fail"
+phen_file = "files_sim/Weibull_dense_1000_20000.phen"
 
 alpha_true = 10 
 sigma_g_true = np.pi**2/(6*alpha_true**2)
-mu_true = 4.1
+mu_true = 3.9
 
 ## load data
 
