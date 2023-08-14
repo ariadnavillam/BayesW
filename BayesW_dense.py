@@ -29,19 +29,24 @@ from Load_data import *
 
 ## parameters
 
-maxit = 30
+maxit = 100
 quad_points = 7
 l_mix = 4
-n_markers = 20000
+n_markers = 10000
 check_file = "checking.txt"
 
-gen_file = "/home/avillanu/GitHub/BayesW/files_sim/Weibull_dense_1000_20000"
-fail_file = "files_sim/Weibull_dense_1000_20000.fail"
-phen_file = "files_sim/Weibull_dense_1000_20000.phen"
+gen_file = "/home/avillanu/GitHub/BayesW/files_sim/Weibull_sparse_5000_10000"
+fail_file = "files_sim/Weibull_sparse_5000_10000.fail"
+phen_file = "files_sim/Weibull_sparse_5000_10000.phen"
 
-alpha_true = 10 
-sigma_g_true = np.pi**2/(6*alpha_true**2)
-mu_true = 3.9
+hpars_file = "files_sim/Weibull_dense_1000_20000.h2"
+
+if os.path.isfile(gen_file+".h2"):
+    hp = pd.read_table(gen_file + ".h2", header=None)
+    h2 = hp[hp[0] =="h2"][1].to_numpy()[0]
+    alpha_true = hp[hp[0] =="alpha"][1].to_numpy()[0]
+    mu_true = hp[hp[0] =="mu"][1].to_numpy()[0]
+    sigma_g_true = hp[hp[0] =="var_g"][1].to_numpy()[0]
 
 ## load data
 
@@ -125,6 +130,8 @@ stop2 = time.time()
 
 print(f"Initialization completed. {stop2 - stop1} seconds.")
 
+markersI = np.arange(0,M)
+
 for it in range(maxit):
     
     #clear_output(wait=False)
@@ -147,8 +154,8 @@ for it in range(maxit):
     pars["marginal_likelihoods"][0] = pars["pi_L"][0] * np.sqrt(np.pi)
     pars["v"] = np.ones(pars["l_mix"])
     
-    
-    for j in range(n_markers):
+    np.random.shuffle(markersI)
+    for j in markersI:
         
         pars = prepare_pars_for_beta(pars, j)
         pars["X_j"] = norm_markers[:,j].flatten()

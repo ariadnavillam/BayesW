@@ -4,36 +4,43 @@ import sys
 import numpy as np
 from scipy import stats
 import pandas as pd
+from Load_data import *
 
+#### ARGUMENTS
 dataset = "Weibull"
-type_marker = "dense"
-N = 1000
-M = 20000
+type_marker = "sparse"
+N = 5000
+M = 10000
 causal = 200
 
-prevalence = 1
 path = "files_sim"
+
+mu = 4.1
+
+alpha = 10
+sigma_g = np.pi**2/(6*alpha**2)
+
+####
 
 if path.endswith("/") == False:
     path = path + "/"
 
 dataset = f"{dataset}_{type_marker}_{N}_{M}"
 
-mu = 3.9
-
-alpha = 10
-sigma_g = np.pi**2/(6*alpha**2)
-
+np.random.seed(1)
 
 b = np.random.normal(0, np.sqrt(sigma_g/causal), size = causal)
 
-if type_marker == "dense":
-    markers = np.random.normal(0, 1, (N, M))
-elif type_marker =="sparse":
-    markers = np.random.binomial(2, 0.5, (N, M))
-else:
-    print("Wrong marker type. Options: dense, sparse.")
-    exit()
+gen_file = "/home/avillanu/BayesW_data_sim/t_M10K_N_5K"
+markers = load_genotype(gen_file)
+
+# if type_marker == "dense":
+#     markers = np.random.normal(0, 1, (N, M))
+# elif type_marker =="sparse":
+#     markers = np.random.binomial(2, 0.5, (N, M))
+# else:
+#     print("Wrong marker type. Options: dense, sparse.")
+#     exit()
 
 beta = np.zeros(M)
 index = np.random.choice(np.arange(0,M), causal)
@@ -42,16 +49,29 @@ h2 = 0.5
 
 beta[index] = b
 
-g = markers.dot(beta.reshape(M,1))
+g = markers.dot(beta)
 
-gumbel_dis = stats.gumbel_r(loc=0, scale=1)
-w = gumbel_dis.rvs(size=(N,1))
+# gumbel_dis = stats.gumbel_r(loc=0, scale=1)
+# w = gumbel_dis.rvs(size=(N,1))
 
+w = -np.log(-np.log(1-np.random.uniform(size=N)))
+log_data = mu + g + w/alpha + np.euler_gamma/alpha
 ## write hyperparameters file
 
-print(
-f'''h2\t{h2}
-sigma_g\t{sigma_g}
+censoring_time = np.random.uniform(600,1000, size=N)
+
+cens = np.log(censoring_time)
+
+
+isFailure = log_data <= cens
+y_log = np.where(isFailure , log_data, cens)
+
+var_g = np.sum(beta**2)
+
+print(var_g)
+
+print(f'''h2\t{var_g/(var_g + sigma_g)}
+var_g\t{var_g}
 mu\t{mu}
 alpha\t{alpha} ''',
 file=open(path + dataset +'.h2', "w"))
@@ -60,12 +80,8 @@ file=open(path + dataset +'.h2', "w"))
 pd.DataFrame({"index":index, "effect": b}).to_csv(path + dataset + ".beta", index=False, sep='\t', header=None)
 
 ## failure indicator vector
-d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = N).astype("int")
+d_fail = isFailure * 1
 
-log_data = mu + g + w/alpha + np.euler_gamma/alpha
-
-
-log_data = log_data.reshape(log_data.shape[0])
 
 plink_q = input("Create plink files? (Y/n)")
 
@@ -121,7 +137,7 @@ else:
 
 phen = pd.DataFrame({"FID" : np.arange(1, N+1, dtype="int"),
                 "IID" : np.arange(1, N+1, dtype="int"),
-                "phen" : log_data })
+                "phen" : y_log })
 
 phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
 

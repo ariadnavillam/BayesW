@@ -138,3 +138,6 @@ notes.ipynb
 script_sim.sh
 
 *.sim
+*.tsv
+*.txt
+*.png
