@@ -5,11 +5,15 @@ import numpy as np
 from scipy import stats
 import pandas as pd
 from Load_data import *
+import helpers
+
+
+in_seed = sys.argv[1]
 
 #### ARGUMENTS
 dataset = "Weibull"
-type_marker = "sparse"
-N = 5000
+type_marker = "dense"
+N = 10000
 M = 10000
 causal = 200
 
@@ -25,47 +29,53 @@ sigma_g = np.pi**2/(6*alpha**2)
 if path.endswith("/") == False:
     path = path + "/"
 
-dataset = f"{dataset}_{type_marker}_{N}_{M}"
+dataset = f"{dataset}_{type_marker}_{N}_{M}_{in_seed}"
 
-np.random.seed(1)
+np.random.seed(int(in_seed))
 
 b = np.random.normal(0, np.sqrt(sigma_g/causal), size = causal)
 
-gen_file = "/home/avillanu/BayesW_data_sim/t_M10K_N_5K"
-markers = load_genotype(gen_file)
+# gen_file = "/home/avillanu/BayesW_data_sim/t_M10K_N_5K"
+# markers = load_genotype(gen_file, "sparse")
+# norm_markers = helpers.normalize_markers(markers)
 
-# if type_marker == "dense":
-#     markers = np.random.normal(0, 1, (N, M))
-# elif type_marker =="sparse":
-#     markers = np.random.binomial(2, 0.5, (N, M))
-# else:
-#     print("Wrong marker type. Options: dense, sparse.")
-#     exit()
+if type_marker == "dense":
+    markers = np.random.normal(size=(N, M))
+    norm_markers = markers
+    
+
+elif type_marker =="sparse":
+    markers = np.random.binomial(2, 0.5, (N, M))
+    norm_markers = helpers.normalize_markers(markers)
+else:
+    print("Wrong marker type. Options: dense, sparse.")
+    exit()
 
 beta = np.zeros(M)
-index = np.random.choice(np.arange(0,M), causal)
-
-h2 = 0.5
+index = np.random.choice(np.arange(0,M), causal, replace=False)
 
 beta[index] = b
+g = np.dot(norm_markers[:,index],b)
 
-g = markers.dot(beta)
+print("Var beta: ", b.var()*200)
+print("Sigma_G: ", g.var())
 
 # gumbel_dis = stats.gumbel_r(loc=0, scale=1)
 # w = gumbel_dis.rvs(size=(N,1))
 
-w = -np.log(-np.log(1-np.random.uniform(size=N)))
+w = np.log(-np.log(1-np.random.uniform(size=N)))
+
 log_data = mu + g + w/alpha + np.euler_gamma/alpha
 ## write hyperparameters file
-
-censoring_time = np.random.uniform(600,1000, size=N)
+print("Var data: ", log_data.var())
+censoring_time = np.random.uniform(100000,1000000, size=N)
 
 cens = np.log(censoring_time)
 
 
 isFailure = log_data <= cens
 y_log = np.where(isFailure , log_data, cens)
-
+y_log[isFailure]
 var_g = np.sum(beta**2)
 
 print(var_g)
@@ -82,8 +92,8 @@ pd.DataFrame({"index":index, "effect": b}).to_csv(path + dataset + ".beta", inde
 ## failure indicator vector
 d_fail = isFailure * 1
 
-
-plink_q = input("Create plink files? (Y/n)")
+#### printing plink files
+plink_q = "n"
 
 if plink_q != "n":
 

@@ -136,6 +136,8 @@ ars.cpp
 /files_sim/
 notes.ipynb
 script_sim.sh
+out_files/
+out_plots/
 
 *.sim
 *.tsv

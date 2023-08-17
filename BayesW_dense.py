@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
+
 import os
 import time
-
+import sys
 
 import matplotlib.pyplot as plt
 
@@ -33,13 +35,17 @@ maxit = 100
 quad_points = 7
 l_mix = 4
 n_markers = 10000
+
+name = "Weibull_dense_10000_10000_99"#sys.argv[1]
+file_dir = "files_sim"
+
 check_file = "checking.txt"
+type_marker = "dense"
+gen_file = f"{file_dir}/{name}"
+fail_file = f"{file_dir}/{name}.fail"
+phen_file = f"{file_dir}/{name}.phen"
 
-gen_file = "/home/avillanu/GitHub/BayesW/files_sim/Weibull_sparse_5000_10000"
-fail_file = "files_sim/Weibull_sparse_5000_10000.fail"
-phen_file = "files_sim/Weibull_sparse_5000_10000.phen"
-
-hpars_file = "files_sim/Weibull_dense_1000_20000.h2"
+hpars_file = f"{file_dir}/{name}.h2"
 
 if os.path.isfile(gen_file+".h2"):
     hp = pd.read_table(gen_file + ".h2", header=None)
@@ -51,7 +57,7 @@ if os.path.isfile(gen_file+".h2"):
 ## load data
 
 start = time.time()
-markers = load_genotype(gen_file)
+markers = load_genotype(gen_file, geno_type=type_marker)
 d_fail = load_fail(fail_file)
 y_data_log = load_phen(phen_file)
 
@@ -79,7 +85,7 @@ print(markers.shape)
 
 # markers, betas_true, cov, d_fail, y_data_log = data
 
-out_file = "BayesW_out.tsv"
+out_file = f"out_files/BayesW_out_{name}.tsv"
 
 header = ["iter", "mu", "sigmaG", "alpha", "h2", "num_markers", "num_groups", "num_mixtures"]
 print("\t".join(header), file=open(out_file, 'w'))
@@ -116,21 +122,15 @@ sigma_g = SimpleParameter(pars["sigma_g"])
 epsilon = y_data_log - mu.now
 np.set_printoptions(precision=3)
 
-# with open("epsilon.txt","w") as f:
-#     print(iter, "\t", 'nan', "\t", end='', file=f)
-#     np.savetxt(f, epsilon )
 
 
-# open('data.txt', 'w').close()
-# open('data_ep.txt', 'w').close()
 print("\t".join(["0", str(mu.now), str(sigma_g.now), str(alpha.now), "h2", "0", "0", "0"]), file=open(out_file, 'a'))
-# print(pars["pi_L"], file=open(check_file, 'w'))
 
 stop2 = time.time()
 
 print(f"Initialization completed. {stop2 - stop1} seconds.")
 
-markersI = np.arange(0,M)
+markerI = np.arange(0,n_markers)
 
 for it in range(maxit):
     
@@ -154,8 +154,8 @@ for it in range(maxit):
     pars["marginal_likelihoods"][0] = pars["pi_L"][0] * np.sqrt(np.pi)
     pars["v"] = np.ones(pars["l_mix"])
     
-    np.random.shuffle(markersI)
-    for j in markersI:
+    np.random.shuffle(markerI)
+    for j in markerI:
         
         pars = prepare_pars_for_beta(pars, j)
         pars["X_j"] = norm_markers[:,j].flatten()
@@ -219,7 +219,7 @@ for it in range(maxit):
 
 stop = time.time()
 print(f"Finished! Total time: {stop - start} seconds.")
-np.savetxt("betas_out.txt", np.array([beta.now for beta in betas]), fmt='%1.3f')
+np.savetxt(f"out_files/betas_out_{name}.txt", np.array([beta.now for beta in betas]), fmt='%1.4f')
 
 f = plt.figure(1, figsize=(10,8))
 plt.subplot(2,2,2)
@@ -238,7 +238,7 @@ plt.title(r"$\beta$")
 plt.subplot(2,2,4)
 sigma_g.plot_sampled_values(truth = sigma_g_true)
 plt.title(r"$\sigma_G^2$")
-
+plt.savefig(f"out_plots/Estimates_{name}.png", dpi=300)
 
 mix_comp = np.array(mix_comp)
 mix_comp = mix_comp/mix_comp.sum(axis=1).reshape(maxit,1)
@@ -254,5 +254,4 @@ plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 plt.xlabel("iteration")
 plt.ylabel("Proportion of markers in component")
 plt.tight_layout()
-
-plt.show()
+plt.savefig(f"out_plots/Mixtures_{name}.png", dpi=300)
