@@ -27,8 +27,8 @@ def dev_log_beta(pars, epsilon_arr):
     '''computes the derivative of the log-likelihood of the betas with dense data
     '''
     return lambda x: - pars["alpha"]*pars["sum_fail"]\
-                    + pars["alpha"]*np.sum(-pars["X_j"]*np.exp(pars["alpha"]*(epsilon_arr - pars["X_j"] * x) - np.euler_gamma)) \
-                    - x**2/(2*pars["mixture_C"]*pars["sigma_g"])
+                    + pars["alpha"]*np.sum(pars["X_j"] * np.exp(pars["alpha"]*(epsilon_arr - pars["X_j"] * x) - np.euler_gamma)) \
+                    - x/(pars["mixture_C"]*pars["sigma_g"])
 
 
 def log_alpha(pars, epsilon_arr):

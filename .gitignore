@@ -139,6 +139,7 @@ script_sim.sh
 out_files/
 out_plots/
 
+
 *.sim
 *.tsv
 *.txt

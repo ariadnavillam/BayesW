@@ -78,7 +78,7 @@ def arms(xinit, ninit, xl, xr, myfunc, convex, npoint, dometrop, xprev,
     if err:
         return err
     
-    
+    print(env.p)
 
     # finish setting up metropolis struct (can only do this after setting up env)
     if metrop.on:

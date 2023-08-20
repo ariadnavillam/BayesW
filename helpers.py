@@ -1,5 +1,8 @@
 import numpy as np
 import random
+import pandas as pd
+
+
 
 def calculate_safe_limit(pars):
     safe_limit = 2 *np.sqrt(pars["sigma_g"] * pars["mixture_C"])

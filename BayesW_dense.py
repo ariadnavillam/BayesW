@@ -34,9 +34,8 @@ from Load_data import *
 maxit = 100
 quad_points = 7
 l_mix = 4
-n_markers = 10000
 
-name = "Weibull_dense_10000_10000_99"#sys.argv[1]
+name = sys.argv[1]
 file_dir = "files_sim"
 
 check_file = "checking.txt"
@@ -44,6 +43,7 @@ type_marker = "dense"
 gen_file = f"{file_dir}/{name}"
 fail_file = f"{file_dir}/{name}.fail"
 phen_file = f"{file_dir}/{name}.phen"
+betas_file = f"{file_dir}/{name}.beta"
 
 hpars_file = f"{file_dir}/{name}.h2"
 
@@ -60,6 +60,9 @@ start = time.time()
 markers = load_genotype(gen_file, geno_type=type_marker)
 d_fail = load_fail(fail_file)
 y_data_log = load_phen(phen_file)
+
+n_markers = markers.shape[1]
+true_betas = get_betas(betas_file, n_markers)
 
 stop1 = time.time()
 
@@ -255,3 +258,12 @@ plt.xlabel("iteration")
 plt.ylabel("Proportion of markers in component")
 plt.tight_layout()
 plt.savefig(f"out_plots/Mixtures_{name}.png", dpi=300)
+
+est_betas = np.array([beta.now for beta in betas])
+
+h = plt.figure(3, figsize=(6,5))
+plt.plot(true_betas, est_betas, "ko", alpha=0.7)
+plt.xlabel(r"$\beta$ (true)")
+plt.ylabel(r"$\hat{\beta}$ (estimated)")
+plt.tight_layout()
+plt.savefig(f"out_plots/Betas_{name}.png", dpi=300)

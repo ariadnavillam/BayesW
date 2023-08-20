@@ -7,6 +7,22 @@ import numpy as np
 import pandas as pd
 
 
+def get_betas(file, M):
+    '''
+    Function to read the true betas file
+
+    Input:
+    - file: file where the betas were saved (.beta)
+    - M: total number of markers
+    '''
+
+    betas = pd.read_table(file, header=None)
+    index = betas[0].to_numpy()
+    b = betas[1].to_numpy()
+    betas = np.zeros(M)
+    betas[index] = b
+    return betas
+
 def load_genotype(file, geno_type = "dense", path_plink = "/home/avillanu/plink/"):
 
     '''

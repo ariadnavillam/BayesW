@@ -3,7 +3,8 @@ from scipy import stats
 import helpers
 import ars
 import matplotlib.pyplot as plt
-import Bayes_arms
+import BayesW_arms_dev
+
 
 class Parameter:
     def __init__(self, log_dens_f, dev_log_dens, bounds, xinit, init_value):
@@ -57,9 +58,9 @@ class Parameter:
             xinit = [self.now * x for x in self.xinit]
         
 
-        err = Bayes_arms.arms(xinit, ninit, xl,xr, self.f(params,epsilon),
-                              convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
-
+        # err = Bayes_arms.arms(xinit, ninit, xl, xr, self.f(params,epsilon),
+        #                       convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
+        xsamp = BayesW_arms_dev.ars(xinit, ninit, xl, xr, self.f(params,epsilon), self.df(params,epsilon), npoint, nsamp)
         # bounds = self.get_bounds()
         # self.bounds_list.append(np.array(bounds))
         # self.previous_values.append(self.current_value)
@@ -69,10 +70,12 @@ class Parameter:
         #                                               derivative= self.df(params, epsilon_or_sums), 
         #                                               num_samples=n_samples, bounds=bounds, ddx=ddx)
         
-        if err != 0:
-            print("Error ", err, " in arms")
-        else:      
-            self.update(xsamp[0])
+        # if err != 0:
+        #     print("Error ", err, " in arms")
+        # else:      
+        #     self.update(xsamp[0])
+
+        self.update(xsamp[0])
 
         return 
     

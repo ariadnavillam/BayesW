@@ -13,9 +13,9 @@ in_seed = sys.argv[1]
 #### ARGUMENTS
 dataset = "Weibull"
 type_marker = "dense"
-N = 10000
+N = 5000
 M = 10000
-causal = 200
+causal = int(sys.argv[2])
 
 path = "files_sim"
 
@@ -153,6 +153,7 @@ phen.to_csv(path + dataset + ".phen", index=False, sep=' ', header=None)
 
 np.savetxt(path + dataset + ".fail", d_fail, '%1i')
 
+print(dataset)
 
 # bash_script = f"""#!/bin/bash
 
