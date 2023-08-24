@@ -1,9 +1,9 @@
 import numpy as np
 from scipy import stats
 import helpers
-import ars
+import tests_and_old_scripts.ars as ars
 import matplotlib.pyplot as plt
-import Bayes_arms
+import BayesW_arms
 
 class Parameter:
     def __init__(self, log_dens_f, dev_log_dens, bounds, xinit, init_value):
@@ -57,7 +57,7 @@ class Parameter:
             xinit = [self.now * x for x in self.xinit]
         
 
-        err = Bayes_arms.arms(xinit, ninit, xl,xr, self.f(params,epsilon_or_sums),
+        err = BayesW_arms.arms(xinit, ninit, xl,xr, self.f(params,epsilon_or_sums),
                               convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
 
         # bounds = self.get_bounds()

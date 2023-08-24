@@ -21,7 +21,7 @@ rc('text', usetex=True)
 plt.rc('axes', prop_cycle=(cycler('color', ['red', 'gray', 'black', 'blue', 'green'])))#, )))
 
 #import ars
-import Bayes_arms
+import BayesW_arms
 
 from BayesW_utils import *
 from Distributions import *

@@ -5,10 +5,17 @@ import pandas as pd
 
 
 def calculate_safe_limit(pars):
+    '''
+    Calculate safe limit for sampling beta
+    '''
+
     safe_limit = 2 *np.sqrt(pars["sigma_g"] * pars["mixture_C"])
     return safe_limit
 
 def normalize_probabilities(probs):
+    '''
+    Normalize probabilities
+    '''
     if probs.min() < 0:
         probs = probs - probs.min()
     return probs

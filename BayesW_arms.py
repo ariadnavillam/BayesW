@@ -8,11 +8,11 @@
 # ---------------------------------------------------------------------------
 """ Functions for Adaptive Rejection Sampling""" 
 
-import numpy as np 
+
 import sys
 import math
-
-import helpers 
+from line_profiler import profile
+import numpy as np 
 
 YCEIL = 50
 XEPS = 1e-5
@@ -50,6 +50,7 @@ class Funbag:
     def __init__(self, myfunc):
         self.myfunc = myfunc  # User-defined function evaluating log density at x
 
+
 def arms(xinit, ninit, xl, xr, myfunc, convex, npoint, dometrop, xprev,
          nsamp, qcent, xcent, ncent, xsamp):
     
@@ -78,7 +79,6 @@ def arms(xinit, ninit, xl, xr, myfunc, convex, npoint, dometrop, xprev,
     if err:
         return err
     
-    print(env.p)
 
     # finish setting up metropolis struct (can only do this after setting up env)
     if metrop.on:
@@ -119,6 +119,7 @@ def arms(xinit, ninit, xl, xr, myfunc, convex, npoint, dometrop, xprev,
 
     return 0
 
+@profile
 def initial(xinit, ninit, xl, xr, npoint, lpdf, convex, metrop):
     
     q = None
@@ -268,7 +269,7 @@ def invert(prob, env, p):
     return 
 
     
-
+@profile
 def test(env, p, lpdf, metrop):
     u = np.random.uniform() * p.ey
     y = logshift(u, env.ymax)

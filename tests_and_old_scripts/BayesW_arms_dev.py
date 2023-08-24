@@ -11,6 +11,7 @@
 
 import numpy as np 
 import helpers 
+import matplotlib.pyplot as plt
 
 YCEIL = 50
 XEPS = 1e-5
@@ -53,8 +54,11 @@ def g_l(x, xs, hs, ymax):
     if all(x < xs) or all(x > xs):
         return 0.
     
+
+
     else:
         i = np.searchsorted(xs, x)
+
         m = (hs[i] - hs[i-1]) / (xs[i] - xs[i-1])
         return expshift(hs[i-1] + (x - xs[i-1]) * m, ymax)
 
@@ -208,10 +212,13 @@ def initialise_abcissa(xinit, ninit, log_unnorm_prob, derivative, npoints, xl, x
     hs = np.array([log_unnorm_prob(x) for x in xs])
     dhdxs = np.array([derivative(x) for x in xs])
     
-    if (dhdxs[0] > 0.) and dhdxs[-1] <0.:
+    if (dhdxs[0] > 0.) and dhdxs[-1] <0.:  
         pass
     else:
-        raise ValueError("xinit not correct. derivatives")
+        xs, hs, dhdxs = reinitilize_abscissa(xs, hs, dhdxs, log_unnorm_prob, derivative, xl, xr)
+        plt.plot(xs, hs)
+        plt.show()
+        
 
     points = int((npoints - ninit)/(ninit-1))
     x_new = []
@@ -262,7 +269,48 @@ def initialise_abcissa(xinit, ninit, log_unnorm_prob, derivative, npoints, xl, x
         
     return xs, hs, dhdxs
 
+def reinitilize_abscissa(xs, hs, dhdxs, log_unnorm_prob, derivative, xl, xr):
+    
+    
+    dx = -0.1
+    counter = 0
+    while True:
+        counter +=1
+        if counter > 100:
+            raise ValueError("Could not find abcissa")
+        
+        if dx < 0. and dhdxs[0] > 0.:
+            dx = 1.
+            
+        elif dx > 0. and dhdxs[-1] < 0.:
+            break
+        
+        insert_idx = 0 if dx < 0 else len(xs)
+        
+        x = xs[0 if dx < 0 else -1] + dx
+        
+        if x < xl and dx < 0.:
+            if derivative(xl) > 0.:
+                x = xl
+            else:
+                print("ARS: Init points outside of left limit.")
+                
+        elif x > xr and dx > 0.:
+            if derivative(xr) < 0.:
+                x = xr
+            else:
+                print("ARS: Init points outside of right limit.")
+            
+        h = log_unnorm_prob(x)
+        dhdx = derivative(x)
 
+        xs = np.insert(xs, insert_idx, x)
+        hs = np.insert(hs, insert_idx, h)
+        dhdxs = np.insert(dhdxs, insert_idx, dhdx)
+        
+        dx = dx * 2
+        
+    return xs, hs, dhdxs
 
 def ars(xinit, ninit, xl, xr, log_unnorm_prob, derivative, npoints,
                                 nsamp):
@@ -287,7 +335,7 @@ def ars(xinit, ninit, xl, xr, log_unnorm_prob, derivative, npoints,
             xsamp.append(x)
 
         # Rejection test
-        elif u * gu <= np.exp(h):
+        elif u * gu <= expshift(h, ymax):
             xsamp.append(x)
 
             i = np.searchsorted(xs, x)

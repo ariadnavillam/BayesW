@@ -13,7 +13,7 @@ from matplotlib import rc
 from matplotlib.colors import LinearSegmentedColormap
 from cycler import cycler
 
-from BayesW_arms_dev import *
+from tests_and_old_scripts.BayesW_arms_dev import *
 
 
 rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
@@ -23,7 +23,7 @@ rc('text', usetex=True)
 plt.rc('axes', prop_cycle=(cycler('color', ['red', 'gray', 'black', 'blue', 'green'])))#, )))
 
 #import ars
-import Bayes_arms
+import BayesW_arms
 
 from BayesW_utils_dense import *
 from Distributions_dense import *
@@ -100,37 +100,68 @@ pars, alpha_ini, sigma_g_ini = init_parameters(n_markers = n_markers,
                                                 data = (markers, d_fail, y_data_log) )
 
 stop2 = time.time()
-epsilon = y_data_log
-mu = 4.1
-xinit = np.array([0.995, 1, 1.005, 1.01]) * 4.1
-log_unnorm_prob = log_mu(pars, epsilon)
-derivative = dev_log_mu(pars, epsilon)
 
-npoints = 10
-xl = 2
-xr = 10
+mu = 4.1
+epsilon = y_data_log - mu
+xinit = np.array([0.5, 1, 1.5, 3]) * pars["alpha"]
+log_unnorm_prob = log_alpha(pars, epsilon)
+derivative = dev_log_alpha(pars, epsilon)
+
+
+xl = 0
+xr = 400
 ninit = 4
-npoint = 100
+npoint = 20
 nsamp = 1
 
-times = []
-samples = []
-plt.figure(figsize=(10,6))
-for p in [10,20,30,50, 60, 70, 80,90,100]:
-    start = time.time()
-    nsamp = 10
-    xsamp = adaptive_rejection_sampling(xinit, ninit, xl, xr, log_unnorm_prob, derivative, p, nsamp)
-    
-    stop = time.time()
-    xsamp = np.array(xsamp)
-    plt.plot(p, xsamp.mean(), "ro")
-    plt.errorbar(p, xsamp.mean(), yerr = xsamp.std(), capsize=10)
-    times.append(stop-start)
-    
+nsamp = 1
+
+xs, hs, dhdxs = initialise_abcissa(xinit, ninit, log_unnorm_prob, derivative, npoint, xl, xr)
 
 
-plt.show()
-print(times)
+plt.plot(xs, hs)
+plt.show(block=False)
+
+xsamp = []
+while len(xsamp) < nsamp:
+    
+    ymax = hs.max()
+    
+    x = sample_envelope(xs, hs, dhdxs, xl, xr, ymax)
+    
+    gl = g_l(x, xs, hs, ymax)
+    gu = g_u(x, xs, hs, dhdxs, ymax)
+
+    
+    u = np.random.rand()
+
+    h, dhdx = log_unnorm_prob(x), derivative(x)
+    # Squeezing test
+    if u * gu <= gl:
+        xsamp.append(x)
+
+    # Rejection test
+    elif u * gu <= expshift(h, ymax):
+        xsamp.append(x)
+
+        i = np.searchsorted(xs, x)
+
+        xs = np.insert(xs, i, x)
+        hs = np.insert(hs, i, h)
+        dhdxs = np.insert(dhdxs, i, dhdx)
+
+    else:
+        print(x, u * gu, gl, expshift(h, ymax))
+        i = np.searchsorted(xs, x)
+
+        xs = np.insert(xs, i, x)
+        hs = np.insert(hs, i, h)
+        dhdxs = np.insert(dhdxs, i, dhdx)
+
+stop = time.time()
+xsamp = np.array(xsamp)
+
+print(xsamp)
 
 
 

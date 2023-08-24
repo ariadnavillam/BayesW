@@ -6,11 +6,6 @@ def sigma_g_func(betas, pars):
     '''Defined posterior of sigma_g parameter'''
     betas_arr = np.array([beta.now for beta in betas])
     
-    # betas_sqr = []
-    # for k in range(1, pars["mixture_groups"]+1):
-    #     b = betas_arr[pars["mixture_component"] == k]
-    #     betas_sqr.append(b.T.dot(b))
-    
     alpha = pars["alpha_sigma"] + 0.5 * (pars["n_markers"] - pars["v"][0] +1)
     beta = pars["beta_sigma"] + 0.5 * (pars["n_markers"] - pars["v"][0] +1)*np.linalg.norm(betas_arr, ord=2)**2
     

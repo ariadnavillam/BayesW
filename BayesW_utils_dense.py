@@ -1,12 +1,14 @@
 import numpy as np
-from scipy import stats
-import helpers
-import ars
-import matplotlib.pyplot as plt
-import BayesW_arms_dev
 
+import matplotlib.pyplot as plt
+import BayesW_arms
+import helpers
 
 class Parameter:
+    '''
+    Class to store the parameters with unknown posterior distributions 
+    '''
+
     def __init__(self, log_dens_f, dev_log_dens, bounds, xinit, init_value):
         self.current_value = init_value
         self.init_value = init_value
@@ -58,24 +60,13 @@ class Parameter:
             xinit = [self.now * x for x in self.xinit]
         
 
-        # err = Bayes_arms.arms(xinit, ninit, xl, xr, self.f(params,epsilon),
-        #                       convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
-        xsamp = BayesW_arms_dev.ars(xinit, ninit, xl, xr, self.f(params,epsilon), self.df(params,epsilon), npoint, nsamp)
-        # bounds = self.get_bounds()
-        # self.bounds_list.append(np.array(bounds))
-        # self.previous_values.append(self.current_value)
-         
-        # err = ars.adaptive_rejection_sampling(x0=self.now*self.sampler_x0, 
-        #                                               log_unnorm_prob=self.f(params, epsilon_or_sums), 
-        #                                               derivative= self.df(params, epsilon_or_sums), 
-        #                                               num_samples=n_samples, bounds=bounds, ddx=ddx)
+        err = BayesW_arms.arms(xinit, ninit, xl, xr, self.f(params,epsilon),
+                              convex,npoint,dometrop,xprev,nsamp,qcent,xcent,ncent, xsamp)
         
-        # if err != 0:
-        #     print("Error ", err, " in arms")
-        # else:      
-        #     self.update(xsamp[0])
-
-        self.update(xsamp[0])
+        if err != 0:
+            print("Error ", err, " in arms")
+        else:      
+            self.update(xsamp[0])
 
         return 
     
@@ -87,6 +78,9 @@ class Parameter:
         #plt.fill_between(range(0,len(self.previous_values)), y1=bo[:,0], y2=bo[:,1], alpha=0.4)
 
 class SimpleParameter():
+    '''
+    Class to store parameters that have known posteriors
+    '''
     def __init__(self,  init_value ):
         self.current_value = init_value
         self.init_value = init_value
@@ -109,11 +103,12 @@ class SimpleParameter():
 
 
 def prepare_pars_for_beta(pars,j):
-    pars["mean"] =  pars["mean_all"][j]
-    pars['mean_sd_ratio'] = pars['mean_sd_ratio_all'][j]
-    pars['sd'] = pars['sd_all'][j]
-    pars['sum_fail'] = pars['sum_fail_all'][j]
+    '''
+    Function to change the parameter values for each marker
+    '''
 
+    pars['sum_fail'] = pars['sum_fail_all'][j]
+    pars['Xj_sqrt'] = pars['Xj_sqrt_all'][j]
     mix = int(pars["mixture_component"][j])
     if mix != 0:
         pars['mixture_Ck'] = pars["Ck"][mix-1]
@@ -143,18 +138,21 @@ def init_parameters(n_markers, l_mix, data):
     markers, d_fail, y_data_log= data
 
     mu = np.mean(y_data_log)
-    #alpha_ini = np.var(y_data_log)
     alpha_ini = np.pi/np.sqrt( 6 * np.sum( (y_data_log-mu) **2) / (len(y_data_log)-1))
     sigma_g_ini = np.pi**2/(6* n_markers * alpha_ini**2)
+
     norm_markers = helpers.normalize_markers(markers)
+
     pi_L = np.zeros(l_mix)
     pi_L[0] = 0.99
     pi_L[1:] = (1 - pi_L[0])/(l_mix - 1)
-    mean_markers = np.mean(markers, axis=0)
-    std_markers = np.std(markers, axis=0)
-    sum_fail = []
+    
+    markers_sqr = [] #np.diag(np.dot(norm_markers.T, norm_markers))
+    sum_fail = [] #np.dot(norm_markers.T, d_fail).flatten()
+    
     for j in range(n_markers):
         sum_fail.append(np.sum(norm_markers[:,j] * d_fail))
+        markers_sqr.append(norm_markers[:,j] * norm_markers[:,j])
 
     
     
@@ -176,8 +174,6 @@ def init_parameters(n_markers, l_mix, data):
             "n_markers": n_markers,
             
 
-            # "mixture_Ck_all": np.ones(n_markers)*0.01/n_markers,
-            # "mixture_groups": 1,
             "mixture_component": np.zeros(n_markers),
             
             "v": np.zeros(l_mix),
@@ -185,10 +181,7 @@ def init_parameters(n_markers, l_mix, data):
 
 
             "sum_fail_all": np.array(sum_fail), #(d_fail * norm_markers.T).sum(axis=1),
-            
-            "mean_all": mean_markers,
-            "sd_all": std_markers,
-            "mean_sd_ratio_all": mean_markers/std_markers,
+    
 
 
             "Ck": [0.001, 0.01, 0.1],
@@ -196,56 +189,10 @@ def init_parameters(n_markers, l_mix, data):
             "pi_L": pi_L,
             "marginal_likelihoods": np.ones(l_mix),
 
-            "hyperparameters": np.zeros(l_mix +1),
-            "gammas": np.zeros(n_markers),
-
+            "Xj_sqrt_all": markers_sqr
     }
     
     return pars, alpha_ini, sigma_g_ini, 
-
-
-def simulate_data(mu_true, alpha_true, sigma_g_true, n_markers, n_samples, n_covs, prevalence):
-    '''
-    Function to simulate markers and phenotype, given the parameters.
-    
-    Input:
-    - mu_true: intercept 
-    - alpha_true: alpha 
-    - sigma_g_true: true sigma_g value.
-    - n_markers: number of markers
-    - n_samples: number of samples
-    - n_covs: number of covariates
-    - prevalence: prevalence of the phenotype (how many people have had the event)
-
-    Output:
-    - markers: simulated marker data as a numpy array
-    - betas: simulated beta coefficients as a numpy array
-    - cov: simulated covariate data as a numpy array.
-    - d_fail: simulated failure indicator (1: event ocurred, 0: it didnt) 
-    - log_data: log phenotype data
-
-    '''
-    ## log Yi = mu + xB + wi/alpha + K/alpha
-
-    ## Draw the errors from a standard Gumbel(wi)
-    gumbel_dis = stats.gumbel_r(loc=0, scale=1)
-    w = gumbel_dis.rvs(size=(n_samples,1))
-
-    ## genetic effects
-    betas = np.random.normal(0, np.sqrt(sigma_g_true/n_markers), size = (n_markers, 1))
-    markers = np.random.binomial(2, 0.5, (n_samples, n_markers))
-
-    g = helpers.normalize_markers(markers).dot(betas)
-
-    cov = np.random.binomial(1, 0.5, size = (n_samples, n_covs)) #z matrix of 
-
-    ## failure indicator vector
-    d_fail = np.random.choice([0,1], p=[1-prevalence, prevalence],size = n_samples)
-
-    log_data = mu_true + g + w/alpha_true + np.euler_gamma/alpha_true
-    log_data = log_data.reshape(log_data.shape[0])
-
-    return (markers, betas, cov, d_fail, log_data)
 
 
 def gh_integrand_adaptive(s, pars, exp_epsilon):
@@ -261,14 +208,18 @@ def gh_integrand_adaptive(s, pars, exp_epsilon):
     Output:
     - np.exp(temp): computed value of the integrand function
     """
-    
+    alpha = pars["alpha"]
+    sum_fail = pars["sum_fail"]
 
-    temp = -pars["alpha"] * s * pars["sum_fail"] * pars["sqrt_2Ck_sigmaG"] \
-            + np.sum((exp_epsilon * (1 -  np.exp(-pars["X_j"]*s*pars["sqrt_2Ck_sigmaG"]*pars["alpha"]) ) )) \
+    sqrt_2Ck_sigmaG = pars["sqrt_2Ck_sigmaG"]
+    X_j = pars["X_j"]
+
+    temp = -alpha * s * sum_fail * sqrt_2Ck_sigmaG \
+            + np.sum(exp_epsilon * (1 - np.exp(-X_j * s * sqrt_2Ck_sigmaG * alpha))) \
             - s ** 2
     
-    
     return np.exp(temp)
+
 
 def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points):
     '''
@@ -338,7 +289,9 @@ def gauss_hermite_adaptive_integral(k, exp_epsilon, pars, m_points):
 
     return pars["sigma"]*temp
 
+
 def marginal_likelihood_vec_calc(pars, exp_epsilon, n):
+
     '''Calculate the marginal likelihood vectors for components not equal to zero
     Input:
     - pars: parameters dictionary
@@ -347,9 +300,9 @@ def marginal_likelihood_vec_calc(pars, exp_epsilon, n):
     - marker: column of the markers matrix
     
     Ouput:
-    - pars["marginal_likelihoods"]: vector with probabilities for each mixture'''
+    - marginal_likelihoods: vector with probabilities for each mixture'''
     
-    exp_sum = np.sum(exp_epsilon * pars["X_j"] * pars["X_j"])
+    exp_sum = np.sum(exp_epsilon * pars["Xj_sqrt"])
 
     marginal_likelihood = [pars["marginal_likelihoods"][0],]
 
